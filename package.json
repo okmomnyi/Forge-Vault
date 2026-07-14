@@ -13,7 +13,8 @@
     "migrate": "node scripts/migrate.js",
     "setup": "npm run migrate && npm run seed",
     "setup-storage": "node scripts/setup-storage.js",
-    "generate-art": "node scripts/generate-art.js"
+    "generate-art": "node scripts/generate-art.js",
+    "check-email": "node scripts/check-email.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",

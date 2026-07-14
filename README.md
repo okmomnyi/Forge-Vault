@@ -108,7 +108,22 @@ Admin: 2FA code · new order · refund requested · **paid-but-unfulfillable** (
 
 Delivery never breaks the operation that triggered it. If Brevo is down, a paid order stays
 paid — losing a receipt is bad, rejecting a successful payment because we couldn't send one
-is much worse.
+is much worse. The exception is the signup/verification code: that IS the only way forward,
+so a failed send there is surfaced to the user rather than swallowed.
+
+### The verified-sender trap
+
+`EMAIL_FROM` **must** be an address Brevo has verified on your account. If it is not, Brevo
+answers `201 Accepted`, the app logs the mail as `sent`, and it is silently dropped
+downstream — because Brevo is not authorised to send for that domain. Everything reports
+success and no code ever arrives.
+
+Before trusting email, run:
+
+```bash
+npm run check-email                 # is EMAIL_FROM actually a verified sender?
+npm run check-email you@email.com   # ...and send a real message to prove it
+```
 
 The two time-based emails (abandoned cart, review request) are driven by Vercel Cron hitting
 `/api/cron/lifecycle` daily at 03:00 (Vercel's Hobby plan rejects any cron more frequent than once a day). That endpoint requires `CRON_SECRET` — an unguarded endpoint
