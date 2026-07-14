@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign In — ForgeVault</title>
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-lg">Skip to main content</a>
+
+    <header data-header class="sticky top-0 z-50 bg-white shadow-header"></header>
+
+    <main id="main" class="mx-auto w-full max-w-md px-4 py-12 sm:py-16">
+      <h1 class="text-center text-2xl font-extrabold tracking-tight text-slate-900">Your account</h1>
+      <p data-account-intro class="mt-2 text-center text-sm text-slate-500">
+        Sign in to check out, or create an account — it takes a minute.
+      </p>
+
+      <!-- ============ Tabs ============ -->
+      <div data-tabs class="mt-8 grid grid-cols-2 gap-1 rounded-xl bg-slate-200 p-1">
+        <button type="button" data-tab="signin" class="rounded-lg px-4 py-2 text-sm font-semibold transition">Sign in</button>
+        <button type="button" data-tab="register" class="rounded-lg px-4 py-2 text-sm font-semibold transition">Create account</button>
+      </div>
+
+      <!-- ============ Sign in ============ -->
+      <section data-panel="signin" class="mt-6">
+        <form data-signin-form novalidate class="card p-6 sm:p-8">
+          <div class="space-y-4">
+            <div>
+              <label for="si-email" class="field-label">Email</label>
+              <input type="email" id="si-email" name="email" required autocomplete="email" class="field-input" />
+              <p data-error-for="email" class="field-error"></p>
+            </div>
+
+            <div>
+              <label for="si-password" class="field-label">Password</label>
+              <input type="password" id="si-password" name="password" required autocomplete="current-password" class="field-input" />
+              <p data-error-for="password" class="field-error"></p>
+            </div>
+          </div>
+
+          <button type="submit" data-submit class="btn-primary mt-6 w-full">Sign in</button>
+          <p data-signin-status role="status" aria-live="polite" class="sr-only"></p>
+        </form>
+      </section>
+
+      <!-- ============ Register ============ -->
+      <section data-panel="register" class="mt-6 hidden">
+        <form data-register-form novalidate class="card p-6 sm:p-8">
+          <div class="space-y-4">
+            <div>
+              <label for="rg-name" class="field-label">Full name</label>
+              <input type="text" id="rg-name" name="name" required autocomplete="name" maxlength="120" class="field-input" />
+              <p data-error-for="name" class="field-error"></p>
+            </div>
+
+            <div>
+              <label for="rg-email" class="field-label">Email</label>
+              <input type="email" id="rg-email" name="email" required autocomplete="email" class="field-input" />
+              <p class="mt-1 text-xs text-slate-500">We send a 6-digit code here to confirm it is yours.</p>
+              <p data-error-for="email" class="field-error"></p>
+            </div>
+
+            <div>
+              <label for="rg-password" class="field-label">Password</label>
+              <input type="password" id="rg-password" name="password" required autocomplete="new-password" class="field-input" />
+              <p class="mt-1 text-xs text-slate-500">At least 10 characters, with an uppercase letter and a number.</p>
+              <p data-error-for="password" class="field-error"></p>
+            </div>
+          </div>
+
+          <button type="submit" data-submit class="btn-primary mt-6 w-full">Create account</button>
+          <p data-register-status role="status" aria-live="polite" class="sr-only"></p>
+        </form>
+      </section>
+
+      <!-- ============ Verify ============ -->
+      <section data-panel="verify" class="mt-6 hidden">
+        <form data-verify-form novalidate class="card p-6 sm:p-8">
+          <h2 class="text-lg font-extrabold text-slate-900">Check your email</h2>
+          <p class="mt-2 text-sm leading-relaxed text-slate-600">
+            We sent a 6-digit code to <strong data-verify-email class="text-slate-900"></strong>.
+          </p>
+
+          <label for="vf-code" class="field-label mt-6">Verification code</label>
+          <input type="text" id="vf-code" name="code" required inputmode="numeric" autocomplete="one-time-code"
+                 pattern="\d{6}" maxlength="6" placeholder="123456"
+                 class="field-input text-center font-mono text-2xl font-bold tracking-[0.4em]" />
+
+          <button type="submit" data-submit class="btn-primary mt-6 w-full">Verify and continue</button>
+          <p data-verify-status role="status" aria-live="polite" class="sr-only"></p>
+
+          <p class="mt-5 text-center text-sm text-slate-500">
+            Didn't get it?
+            <button type="button" data-resend class="font-semibold text-blue-600 hover:text-blue-700">Send a new code</button>
+          </p>
+        </form>
+      </section>
+    </main>
+
+    <footer data-footer class="on-dark bg-black"></footer>
+
+    <script type="module" src="/src/shop.js"></script>
+  </body>
+</html>

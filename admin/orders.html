@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orders — ForgeVault Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen bg-slate-100">
+    <header data-admin-shell class="bg-navy-900"></header>
+
+    <main class="container-page py-10">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">Orders</h1>
+
+        <div>
+          <label for="status" class="sr-only">Filter by status</label>
+          <select id="status" data-status-filter class="field-input w-56">
+            <option value="all">All statuses</option>
+            <option value="paid">Paid — to fulfil</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="payment_failed">Payment failed</option>
+            <option value="awaiting_verification">Awaiting verification</option>
+            <option value="pending_payment">Awaiting payment</option>
+            <option value="refunded">Refunded</option>
+            <option value="partially_refunded">Partially refunded</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      <div data-order-detail class="mt-8 hidden"></div>
+      <div data-orders class="mt-8"></div>
+    </main>
+
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

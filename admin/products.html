@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Products — ForgeVault Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen bg-slate-100">
+    <header data-admin-shell class="bg-navy-900"></header>
+
+    <main class="container-page py-10">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">Products</h1>
+        <button type="button" data-new-product class="btn-primary">+ New part</button>
+      </div>
+
+      <div data-admin-products class="mt-8"></div>
+    </main>
+
+    <!-- ============ Create / edit dialog ============ -->
+    <dialog data-product-dialog
+            class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 open:animate-none">
+      <form data-product-form novalidate class="p-6 sm:p-8">
+        <h2 data-dialog-title class="text-lg font-extrabold text-slate-900">New part</h2>
+
+        <div class="mt-6 grid gap-5 sm:grid-cols-2">
+          <div class="sm:col-span-2">
+            <label for="p-title" class="field-label">Title <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="text" id="p-title" name="title" required maxlength="300" class="field-input" />
+            <p data-error-for="title" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-slug" class="field-label">Slug <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="text" id="p-slug" name="slug" required maxlength="200" pattern="[a-z0-9\-]+"
+                   class="field-input font-mono text-xs" />
+            <p class="mt-1 text-xs text-slate-500">Used in the URL. Auto-filled from the title.</p>
+            <p data-error-for="slug" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-brand" class="field-label">Brand <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="text" id="p-brand" name="brand" required maxlength="80" class="field-input"
+                   placeholder="Opel, Skoda, Ford…" />
+            <p data-error-for="brand" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-category" class="field-label">Category</label>
+            <select id="p-category" name="categorySlug" class="field-input">
+              <option value="">— none —</option>
+              <option value="body">Body</option>
+              <option value="brakes">Brakes</option>
+              <option value="bumpers">Bumpers</option>
+              <option value="electricals">Electricals</option>
+              <option value="engines">Engines</option>
+              <option value="exhaust">Exhaust</option>
+              <option value="seats">Seats</option>
+              <option value="lights">Lights</option>
+              <option value="tires">Tires</option>
+              <option value="transmission">Transmission</option>
+            </select>
+            <p data-error-for="categorySlug" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-part-number" class="field-label">Part number</label>
+            <input type="text" id="p-part-number" name="partNumber" maxlength="120" class="field-input font-mono text-xs" />
+            <p data-error-for="partNumber" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-price" class="field-label">Price (USD) <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="number" id="p-price" name="price" required min="0" step="0.01" class="field-input" placeholder="320.00" />
+            <p data-error-for="priceCents" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-old-price" class="field-label">Was (USD)</label>
+            <input type="number" id="p-old-price" name="oldPrice" min="0" step="0.01" class="field-input" placeholder="Leave blank if not on sale" />
+            <p class="mt-1 text-xs text-slate-500">The discount badge is calculated from this — you cannot set it by hand.</p>
+            <p data-error-for="oldPriceCents" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-stock" class="field-label">Stock <span class="text-red-600" aria-hidden="true">*</span></label>
+            <input type="number" id="p-stock" name="stock" required min="0" step="1" class="field-input" />
+            <p data-error-for="stock" class="field-error"></p>
+          </div>
+
+          <div>
+            <label for="p-image" class="field-label">Photo</label>
+
+            <div class="flex items-start gap-3">
+              <!-- Preview. Shows the gradient placeholder until a photo exists. -->
+              <div data-image-preview class="ph ph-2 h-16 w-16 shrink-0 overflow-hidden rounded-lg"></div>
+
+              <div class="min-w-0 flex-1">
+                <label class="btn-outline w-full cursor-pointer justify-center text-xs">
+                  <input type="file" accept="image/*" class="sr-only" data-product-file />
+                  Upload photo
+                </label>
+                <p data-upload-status class="mt-1 text-xs text-slate-500">
+                  Hosted on ImgBB. Large photos are resized automatically.
+                </p>
+              </div>
+            </div>
+
+            <!-- The URL itself. Filled in by the upload; editable if you already
+                 have an ImgBB link. Rejected server-side if it is not an
+                 allow-listed host. -->
+            <input type="text" id="p-image" name="imagePath" maxlength="500"
+                   class="field-input mt-2 font-mono text-xs" placeholder="https://i.ibb.co/… (or upload above)" />
+            <p data-error-for="imagePath" class="field-error"></p>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label for="p-description" class="field-label">Description</label>
+            <textarea id="p-description" name="description" rows="3" maxlength="5000" class="field-input resize-y"></textarea>
+            <p data-error-for="description" class="field-error"></p>
+          </div>
+
+          <fieldset class="sm:col-span-2">
+            <legend class="field-label">Visibility</legend>
+            <div class="mt-2 flex flex-wrap gap-5">
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="isActive" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+                Visible in the shop
+              </label>
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="isFeatured" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+                Recommended For You
+              </label>
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" name="isDeal" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+                Deals You May Like
+              </label>
+            </div>
+          </fieldset>
+        </div>
+
+        <p data-product-status role="status" aria-live="polite" class="sr-only"></p>
+
+        <div class="mt-8 flex justify-end gap-3">
+          <button type="button" data-cancel class="btn-outline">Cancel</button>
+          <button type="submit" data-submit class="btn-primary">Save part</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

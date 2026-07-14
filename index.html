@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ForgeVault — European Auto Parts, Fitment First</title>
+    <meta
+      name="description"
+      content="ForgeVault supplies genuine and verified European auto parts — Opel, Stellantis, Skoda, Ford. VIN-aware fitment support, clear OEM vs aftermarket options, and transparent returns."
+    />
+    <meta name="theme-color" content="#0b1220" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+
+  <body class="min-h-screen">
+    <a
+      href="#main"
+      class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-lg"
+      >Skip to main content</a
+    >
+
+    <!-- Header is injected by src/partials.js -->
+    <header data-header="" class="sticky top-0 z-50 bg-white shadow-header"></header>
+
+    <main id="main">
+      <!-- ==================== 1. HERO SLIDER ==================== -->
+      <section
+        data-slider
+        data-autoplay="6000"
+        aria-roledescription="carousel"
+        aria-label="Featured highlights"
+        class="on-dark relative min-h-[520px] overflow-hidden bg-navy-900 md:min-h-[600px]"
+      >
+        <!-- Slide 1 -->
+        <div data-slide data-active="true" role="group" aria-roledescription="slide" aria-label="1 of 4" class="slide">
+          <div class="ph ph-dark absolute inset-0" data-site-image="hero-1"></div>
+          <div class="absolute inset-0 bg-slate-950/70"></div>
+          <div class="container-page relative flex min-h-[520px] items-center justify-center md:min-h-[600px]">
+            <div class="mx-auto max-w-3xl py-20 text-center">
+              <h1 class="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Find The Right Part First Time
+              </h1>
+              <p class="mt-5 text-lg font-medium text-slate-200 sm:text-xl">
+                VIN-aware sourcing, fitment support, and clear options
+              </p>
+              <p class="mx-auto mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
+                Not sure about exact model details? Shop with confidence using compatibility-focused listings and
+                support.
+              </p>
+              <a href="#products" class="btn-primary mt-8">Start with fitment-safe parts</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div data-slide role="group" aria-roledescription="slide" aria-label="2 of 4" class="slide">
+          <div class="ph ph-dark absolute inset-0" data-site-image="hero-2"></div>
+          <div class="absolute inset-0 bg-slate-950/70"></div>
+          <div class="container-page relative flex min-h-[520px] items-center justify-center md:min-h-[600px]">
+            <div class="mx-auto max-w-3xl py-20 text-center">
+              <p class="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Genuine European Parts, Verified Stock
+              </p>
+              <p class="mt-5 text-lg font-medium text-slate-200 sm:text-xl">
+                OEM, premium aftermarket, and verified used options
+              </p>
+              <a href="#deals" class="btn-primary mt-8">Shop today's deals</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div data-slide role="group" aria-roledescription="slide" aria-label="3 of 4" class="slide">
+          <div class="ph ph-dark absolute inset-0" data-site-image="hero-3"></div>
+          <div class="absolute inset-0 bg-slate-950/70"></div>
+          <div class="container-page relative flex min-h-[520px] items-center justify-center md:min-h-[600px]">
+            <div class="mx-auto max-w-3xl py-20 text-center">
+              <p class="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Fitment Confidence Starts Here
+              </p>
+              <p class="mt-5 text-lg font-medium text-slate-200 sm:text-xl">
+                Use VIN and part identifiers to reduce wrong-part risk before checkout.
+              </p>
+              <a href="/contact.html" class="btn-primary mt-8">Request VIN fitment check</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Slide 4 -->
+        <div data-slide role="group" aria-roledescription="slide" aria-label="4 of 4" class="slide">
+          <div class="ph ph-dark absolute inset-0" data-site-image="hero-4"></div>
+          <div class="absolute inset-0 bg-slate-950/70"></div>
+          <div class="container-page relative flex min-h-[520px] items-center justify-center md:min-h-[600px]">
+            <div class="mx-auto max-w-3xl py-20 text-center">
+              <p class="text-balance text-4xl font-extrabold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
+                Clear Returns, Warranty, and Shipping
+              </p>
+              <p class="mt-5 text-lg font-medium text-slate-200 sm:text-xl">
+                Know timing, policy coverage, and support steps before you order.
+              </p>
+              <a href="/contact.html" class="btn-primary mt-8">Talk to support</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <button type="button" data-prev aria-label="Previous slide" class="slider-arrow left-3 sm:left-5">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <button type="button" data-next aria-label="Next slide" class="slider-arrow right-3 sm:right-5">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+
+        <p
+          data-counter
+          aria-live="polite"
+          class="absolute right-4 top-4 z-20 rounded-full border border-white/20 bg-black/50 px-3 py-1 text-xs font-semibold tabular-nums text-white backdrop-blur-sm sm:right-6 sm:top-6"
+        >
+          1 / 4
+        </p>
+
+        <div class="absolute inset-x-0 bottom-6 z-20 flex items-center justify-center gap-2.5">
+          <button type="button" data-dot aria-label="Go to slide 1" aria-current="true" class="slider-dot"></button>
+          <button type="button" data-dot aria-label="Go to slide 2" aria-current="false" class="slider-dot"></button>
+          <button type="button" data-dot aria-label="Go to slide 3" aria-current="false" class="slider-dot"></button>
+          <button type="button" data-dot aria-label="Go to slide 4" aria-current="false" class="slider-dot"></button>
+        </div>
+      </section>
+
+      <!-- ==================== 2. TRUSTED REVIEWS ==================== -->
+      <section aria-labelledby="reviews-heading" class="container-page py-10 sm:py-14">
+        <div class="card p-6 sm:p-8">
+          <p class="eyebrow">Trusted reviews</p>
+          <h2 id="reviews-heading" class="mt-2 text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+            Why buyers trust our fitment-first approach
+          </h2>
+
+          <!-- ============================================================
+               REVIEW WIDGET SLOT
+               Replace the placeholder <div> below with the real embed from
+               Trustindex / Google Reviews. Paste the provider's <script>
+               snippet and its target container exactly as issued, and delete
+               the placeholder markup — nothing else on the page depends on it.
+               ============================================================ -->
+          <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-6">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="grid h-8 w-8 place-items-center rounded-full bg-green-600 text-white">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              </span>
+              <span class="text-sm font-bold text-slate-900">Trustindex</span>
+
+              <span class="flex items-center gap-0.5" role="img" aria-label="Rated 4.8 out of 5 stars">
+                <svg viewBox="0 0 20 20" fill="#f59e0b" class="h-5 w-5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+                <svg viewBox="0 0 20 20" fill="#f59e0b" class="h-5 w-5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+                <svg viewBox="0 0 20 20" fill="#f59e0b" class="h-5 w-5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+                <svg viewBox="0 0 20 20" fill="#f59e0b" class="h-5 w-5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+                <svg viewBox="0 0 20 20" fill="#f59e0b" class="h-5 w-5" aria-hidden="true"><path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L1.5 7.7l5.9-.9z"/></svg>
+              </span>
+            </div>
+            <p class="mt-4 text-sm text-slate-600">
+              A 4.8 average rating from verified buyers who ordered European parts with fitment support.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 3. THREE INFO ROWS ==================== -->
+      <section aria-label="Buying guidance" class="container-page space-y-4 pb-10 sm:pb-14">
+        <article class="card p-6 sm:p-8">
+          <p class="eyebrow">Fitment</p>
+          <h2 class="mt-2 text-xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+            Will this part fit my vehicle?
+          </h2>
+          <p class="mt-2 text-slate-600">See VIN and compatibility guidance before you buy.</p>
+        </article>
+
+        <article class="card p-6 sm:p-8">
+          <p class="eyebrow">OEM quality</p>
+          <h2 class="mt-2 text-xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+            OEM vs aftermarket vs used?
+          </h2>
+          <p class="mt-2 text-slate-600">Compare options by quality tier, risk, and budget.</p>
+        </article>
+
+        <article class="card p-6 sm:p-8">
+          <p class="eyebrow">Post-purchase</p>
+          <h2 class="mt-2 text-xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+            Returns, warranty, and shipping timing
+          </h2>
+          <p class="mt-2 text-slate-600">Get clarity on what happens after checkout.</p>
+        </article>
+      </section>
+
+      <!-- ==================== 4. RECOMMENDED FOR YOU ==================== -->
+      <section id="products" aria-labelledby="recommended-heading" class="container-page pb-10 sm:pb-14">
+        <div class="mb-6 flex items-end justify-between gap-4">
+          <h2 id="recommended-heading" class="text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+            Recommended For You
+          </h2>
+          <a href="#categories" class="link-all shrink-0">View all <span aria-hidden="true">&rsaquo;</span></a>
+        </div>
+        <div data-grid="recommended" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+
+      <!-- ==================== 5. PROMO BANNER ==================== -->
+      <section aria-labelledby="promo-heading" class="container-page pb-10 sm:pb-14">
+        <div data-slider class="on-dark relative overflow-hidden rounded-2xl bg-navy-gradient shadow-soft">
+          <div data-slide data-active="true" class="slide !relative">
+            <div class="px-12 py-14 sm:px-16 sm:py-20 lg:px-20">
+              <div class="max-w-2xl">
+                <h2 id="promo-heading" class="text-balance text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
+                  Comfort You Can Feel on Every Drive
+                </h2>
+                <p class="mt-4 text-base text-slate-300 sm:text-lg">
+                  Seat components and interior upgrades chosen to restore support, style, and everyday comfort.
+                </p>
+                <a href="#products" class="btn-white mt-8">Browse seats</a>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" data-prev aria-label="Previous banner" class="slider-arrow left-2 sm:left-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button type="button" data-next aria-label="Next banner" class="slider-arrow right-2 sm:right-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ==================== 6. DEALS YOU MAY LIKE ==================== -->
+      <section id="deals" aria-labelledby="deals-heading" class="container-page pb-10 sm:pb-14">
+        <div class="mb-6 flex items-end justify-between gap-4">
+          <h2 id="deals-heading" class="text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+            Deals You May Like
+          </h2>
+          <a href="#products" class="link-all shrink-0">Shop deals <span aria-hidden="true">&rsaquo;</span></a>
+        </div>
+        <div data-grid="deals" class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+
+      <!-- ==================== 7. SHOP BY CATEGORY ==================== -->
+      <section id="categories" aria-labelledby="categories-heading" class="container-page pb-16 sm:pb-20">
+        <div class="mb-6 flex items-end justify-between gap-4">
+          <h2 id="categories-heading" class="text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
+            Shop by Category
+          </h2>
+          <a href="#products" class="link-all shrink-0">View all <span aria-hidden="true">&rsaquo;</span></a>
+        </div>
+        <div data-grid="categories" class="grid grid-cols-2 gap-5 lg:grid-cols-3"></div>
+      </section>
+    </main>
+
+    <!-- Footer is injected by src/partials.js -->
+    <footer data-footer class="on-dark bg-black"></footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

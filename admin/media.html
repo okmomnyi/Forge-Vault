@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Media — ForgeVault Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen bg-slate-100">
+    <header data-admin-shell class="bg-navy-900"></header>
+
+    <main class="container-page py-10">
+      <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">Media</h1>
+      <p class="mt-1 max-w-3xl text-sm text-slate-500">
+        Images are hosted on ImgBB. Upload here and they appear on the site immediately — no redeploy.
+        Anything without an image keeps showing its gradient placeholder, so a half-finished catalogue
+        never looks broken.
+      </p>
+
+      <div data-imgbb-warning class="mt-6 hidden rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900"></div>
+
+      <!-- ============ Hero slides ============ -->
+      <section aria-labelledby="hero-heading" class="mt-10">
+        <h2 id="hero-heading" class="text-lg font-extrabold text-slate-900">Hero slides</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          The four full-width slides on the home page. Landscape, roughly 2400&times;1200. Dark images work
+          best — white text and a dark overlay sit on top.
+        </p>
+        <div data-hero-slots class="mt-5 grid gap-5 sm:grid-cols-2"></div>
+      </section>
+
+      <!-- ============ Category tiles ============ -->
+      <section aria-labelledby="cat-heading" class="mt-12">
+        <h2 id="cat-heading" class="text-lg font-extrabold text-slate-900">Category tiles</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          The "Shop by Category" grid on the home page.
+          <strong class="text-slate-700">A category appears on the home page once it has an image</strong> —
+          so uploading artwork for Seats adds a seventh tile.
+        </p>
+        <div data-category-slots class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+
+      <!-- ============ Partners ============ -->
+      <section aria-labelledby="partner-heading" class="mt-12">
+        <h2 id="partner-heading" class="text-lg font-extrabold text-slate-900">Partner logos</h2>
+        <p class="mt-1 text-sm text-slate-500">Shown on the About page. A square PNG works best.</p>
+        <div data-partner-slots class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+
+      <p class="mt-12 max-w-3xl rounded-xl border border-slate-200 bg-white p-4 text-xs leading-relaxed text-slate-500">
+        <strong class="text-slate-700">A note on ImgBB.</strong>
+        It is a free image host with no uptime guarantee, and images can be removed. If one disappears, the
+        page falls back to its placeholder rather than breaking — but the photo is gone. For a shop that is
+        taking real money, Supabase Storage (which you already pay for) is the safer home. Swapping is a
+        single file: <code class="rounded bg-slate-100 px-1 py-0.5 font-mono">api/_lib/storage.js</code>.
+      </p>
+    </main>
+
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Sign In — ForgeVault</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="grid min-h-screen place-items-center bg-navy-gradient px-4 py-12">
+    <main class="w-full max-w-md">
+      <div class="mb-8 text-center">
+        <span class="text-2xl uppercase tracking-[0.14em] text-white">
+          <span class="font-extrabold">Forge</span><span class="font-light">Vault</span>
+        </span>
+        <!-- The page's single h1. Each step below is an h2 of this one flow. -->
+        <h1 class="mt-1 text-xs font-bold uppercase tracking-[0.2em] text-blue-300">Admin sign in</h1>
+      </div>
+
+      <!-- ============ STEP 1: password ============ -->
+      <section data-step="password">
+        <form data-login-form novalidate class="card p-8">
+          <h2 class="text-xl font-extrabold text-slate-900">Sign in</h2>
+          <p class="mt-1 text-sm text-slate-500">We will email you a code to confirm it is you.</p>
+
+          <div class="mt-6 space-y-4">
+            <div>
+              <label for="email" class="field-label">Email</label>
+              <input type="email" id="email" name="email" required autocomplete="username"
+                     autofocus class="field-input" />
+            </div>
+
+            <div>
+              <label for="password" class="field-label">Password</label>
+              <input type="password" id="password" name="password" required autocomplete="current-password"
+                     class="field-input" />
+            </div>
+          </div>
+
+          <button type="submit" data-submit class="btn-primary mt-6 w-full">Continue</button>
+          <p data-login-status role="status" aria-live="polite" class="sr-only"></p>
+        </form>
+      </section>
+
+      <!-- ============ STEP 2: 2FA ============ -->
+      <section data-step="2fa" class="hidden">
+        <form data-2fa-form novalidate class="card p-8">
+          <h2 class="text-xl font-extrabold text-slate-900">Check your email</h2>
+          <p class="mt-2 text-sm leading-relaxed text-slate-600">
+            We sent a 6-digit code to <strong data-2fa-email class="text-slate-900"></strong>.
+          </p>
+
+          <label for="code" class="field-label mt-6">Sign-in code</label>
+          <input type="text" id="code" name="code" required inputmode="numeric" autocomplete="one-time-code"
+                 pattern="\d{6}" maxlength="6" placeholder="123456"
+                 class="field-input text-center font-mono text-2xl font-bold tracking-[0.4em]" />
+
+          <button type="submit" data-submit class="btn-primary mt-6 w-full">Sign in</button>
+          <p data-2fa-status role="status" aria-live="polite" class="sr-only"></p>
+
+          <p class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+            If you did not just try to sign in, someone else has your password.
+            Do not enter a code — change your password immediately.
+          </p>
+        </form>
+      </section>
+
+      <p class="mt-6 text-center text-xs text-slate-400">
+        <a href="/index.html" class="hover:text-white">← Back to the shop</a>
+      </p>
+    </main>
+
+    <script type="module" src="/src/admin.js"></script>
+  </body>
+</html>

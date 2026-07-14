@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    @apply bg-slate-100 font-sans text-slate-700 antialiased;
+  }
+
+  /* Visible focus ring everywhere, on every interactive element. */
+  :focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Dark surfaces get a light ring so it stays visible. */
+  .on-dark :focus-visible {
+    outline-color: #ffffff;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-blue-600;
+  }
+
+  .card {
+    @apply rounded-2xl bg-white shadow-soft ring-1 ring-slate-900/5;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition;
+  }
+
+  .btn-primary {
+    @apply btn bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800;
+  }
+
+  .btn-white {
+    @apply btn rounded-full bg-white text-slate-900 hover:bg-slate-100;
+  }
+
+  .btn-outline {
+    @apply btn border border-slate-300 bg-white text-slate-900 hover:border-slate-400 hover:bg-slate-50;
+  }
+
+  .link-all {
+    @apply inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700;
+  }
+
+  .nav-link {
+    @apply text-sm font-semibold text-slate-700 transition hover:text-blue-600;
+  }
+
+  /* ---- Image placeholders -------------------------------------------------
+     Every image area renders a gradient + centered icon underneath the <img>.
+     If the real file in /public/assets is missing, main.js hides the broken
+     <img> and the placeholder shows through. Drop the real photo in and it
+     covers the placeholder automatically. No hotlinking, no layout shift.
+  ------------------------------------------------------------------------- */
+  .ph {
+    @apply relative overflow-hidden;
+    background-image: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 48%, #94a3b8 100%);
+  }
+
+  .ph-dark {
+    background-image: linear-gradient(135deg, #0b1220 0%, #111c33 45%, #1e3a8a 100%);
+  }
+
+  .ph-icon {
+    @apply pointer-events-none absolute inset-0 grid place-items-center;
+    color: rgba(15, 23, 42, 0.22);
+  }
+
+  .ph-dark .ph-icon {
+    color: rgba(255, 255, 255, 0.14);
+  }
+
+  img.is-missing {
+    display: none !important;
+  }
+
+  /* ---- Slider ------------------------------------------------------------ */
+  .slide {
+    @apply absolute inset-0 opacity-0 transition-opacity duration-700 ease-out;
+    pointer-events: none;
+  }
+
+  .slide[data-active='true'] {
+    @apply opacity-100;
+    pointer-events: auto;
+  }
+
+  .slider-arrow {
+    @apply absolute top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/25 bg-white/10 text-white backdrop-blur-sm transition hover:bg-white/25;
+  }
+
+  .slider-dot {
+    @apply h-2.5 w-2.5 rounded-full bg-white/40 transition hover:bg-white/70;
+  }
+
+  .slider-dot[aria-current='true'] {
+    @apply w-7 bg-white;
+  }
+
+  /* ---- Footer ------------------------------------------------------------ */
+  .footer-link {
+    @apply text-sm text-slate-400 transition hover:text-white;
+  }
+
+  /* ---- Forms ------------------------------------------------------------- */
+  .field-label {
+    @apply mb-1.5 block text-sm font-semibold text-slate-900;
+  }
+
+  .field-input {
+    @apply block w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30;
+  }
+
+  .field-input[aria-invalid='true'] {
+    @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+  }
+
+  .field-counter {
+    @apply mt-1 text-right text-xs tabular-nums text-slate-400;
+  }
+
+  .field-error {
+    @apply mt-1 hidden text-xs font-medium text-red-600;
+  }
+
+  .field-error[data-visible='true'] {
+    @apply block;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Placeholder gradient tones. Deliberately outside @layer so they survive
+   tree-shaking — the class name is built at runtime (`ph-${i % 4 + 1}`) and
+   never appears as a literal for Tailwind's content scanner to find. */
+.ph-1 {
+  background-image: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 48%, #94a3b8 100%);
+}
+
+.ph-2 {
+  background-image: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 50%, #93c5fd 100%);
+}
+
+.ph-3 {
+  background-image: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 40%, #64748b 100%);
+}
+
+.ph-4 {
+  background-image: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 50%, #a5b4fc 100%);
+}

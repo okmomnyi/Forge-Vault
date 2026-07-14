@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>All Parts — ForgeVault</title>
+    <meta name="description" content="Browse every European auto part in stock at ForgeVault — Opel, Stellantis, Skoda, Ford." />
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-lg">Skip to main content</a>
+
+    <header data-header="products" class="sticky top-0 z-50 bg-white shadow-header"></header>
+
+    <main id="main" class="container-page py-10 sm:py-14">
+      <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <h1 data-products-heading class="text-3xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-4xl">
+          All Parts
+        </h1>
+
+        <form data-search-form role="search" class="flex w-full max-w-sm gap-2">
+          <label for="search" class="sr-only">Search parts</label>
+          <input type="search" id="search" data-search-input name="q" placeholder="Search by part, brand, or number"
+                 class="field-input" />
+          <button type="submit" class="btn-primary shrink-0 px-4">
+            <span class="sr-only">Search</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-5 w-5" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <section aria-label="Parts">
+        <div data-products-grid class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"></div>
+      </section>
+    </main>
+
+    <footer data-footer class="on-dark bg-black"></footer>
+
+    <script type="module" src="/src/shop.js"></script>
+  </body>
+</html>
