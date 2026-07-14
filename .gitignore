@@ -11,9 +11,16 @@ dist/
 .env.*
 !.env.example
 
-# Local scratch / verification scripts
+# Local scratch / verification scripts and screenshots
 .verify-*.mjs
+.check-*.mjs
+.shot.mjs
 *.bak
+
+# Verification screenshots — never part of the app
+shot-*.png
+home-*.png
+about-*.png
 
 # OS / editor
 .DS_Store

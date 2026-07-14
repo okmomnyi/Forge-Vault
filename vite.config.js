@@ -60,14 +60,14 @@ function assetManifest() {
 /* ==========================================================================
    Dev API
    ==========================================================================
-   In production Vercel routes every /api/* request to the single catch-all
-   function at api/[[...path]].js, which dispatches to a handler in
+   In production a rewrite in vercel.json sends every /api/* request to the
+   single function at api/index.js, which dispatches to a handler in
    api/_handlers/. (One function, not 32, because Vercel's Hobby plan caps a
    deployment at 12 — see the comment in that file.)
 
-   This does exactly the same thing for `npm run dev`: hand the request to the
-   same catch-all. Dev and production therefore share one router, so a route
-   that works locally cannot be missing in production.
+   This does the same for `npm run dev`: hand the request straight to that
+   router. Dev and production therefore share one route table, so a route that
+   works locally cannot be missing in production.
    ========================================================================== */
 
 function devApi() {
@@ -111,7 +111,7 @@ function devApi() {
         // the stream themselves via readJson/readRaw.
 
         try {
-          const { default: router } = await server.ssrLoadModule('/api/[[...path]].js');
+          const { default: router } = await server.ssrLoadModule('/api/index.js');
           await router(req, res);
         } catch (error) {
           server.config.logger.error(`[dev-api] ${req.url}: ${error.message}\n${error.stack}`);

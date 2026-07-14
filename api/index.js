@@ -10,14 +10,30 @@ import { applySecurityHeaders, clientIp, fail } from './_lib/http.js';
  * WHY ONE FUNCTION INSTEAD OF 32
  *
  *   Vercel's Hobby plan hard-caps a deployment at 12 Serverless Functions, and
- *   it treats every file under api/ as one. With 32 handlers the build passed
- *   and the DEPLOY failed. Directories prefixed with `_` are not routed, so
- *   moving the handlers under _handlers/ leaves exactly one function: this file.
+ *   without a framework it treats every file under api/ as one. With 32 handlers
+ *   the build passed and the DEPLOY failed. Directories prefixed with `_` are
+ *   not routed, so moving the handlers under _handlers/ leaves exactly one
+ *   function: this file.
  *
  *   This is not merely a workaround. One function means one warm instance
  *   serving every route, so a customer hitting checkout benefits from the
  *   instance that already served the product page — fewer cold starts, not more.
  *   The cost is a slightly larger bundle, which is paid once per cold start.
+ *
+ * HOW REQUESTS GET HERE
+ *
+ *   An explicit rewrite in vercel.json sends /api/* to this file:
+ *
+ *     { "source": "/api/:path*", "destination": "/api/index?__path=:path*" }
+ *
+ *   The rewrite is deliberate rather than relying on a catch-all FILENAME.
+ *   `[[...path]].js` is Next.js's optional-catch-all convention and is NOT
+ *   recognised by Vercel's plain function routing — using it produced a
+ *   deployment where every single API call 404'd. A rewrite is unambiguous.
+ *
+ *   Because the rewrite changes the path Vercel hands us, req.url here reads
+ *   "/api/index", not the route the caller asked for. The real path is passed
+ *   through as __path and reconstructed below.
  *
  * BODY PARSING
  *
@@ -114,7 +130,18 @@ export default async function router(req, res) {
 
   const url = new URL(req.url, 'http://localhost');
 
-  const match = COMPILED.map((route) => ({ route, result: route.regex.exec(url.pathname) })).find(
+  /**
+   * The route the CALLER asked for.
+   *
+   * In production the vercel.json rewrite has already replaced the path with
+   * /api/index, so url.pathname is useless and the original arrives as __path.
+   * In dev (and if the rewrite is ever removed) req.url is already correct.
+   * Support both, so the two environments cannot drift.
+   */
+  const forwarded = url.searchParams.get('__path');
+  const pathname = forwarded ? `/api/${forwarded.replace(/^\/+/, '')}` : url.pathname;
+
+  const match = COMPILED.map((route) => ({ route, result: route.regex.exec(pathname) })).find(
     ({ result }) => result,
   );
 
@@ -125,9 +152,15 @@ export default async function router(req, res) {
   // Rebuild the request shape the handlers expect: query string params plus any
   // dynamic path segments, exactly as Vercel's own file-based routing provides.
   req.query = Object.fromEntries(url.searchParams);
+  delete req.query.__path; // plumbing, not a real parameter
+
   match.route.names.forEach((name, i) => {
     req.query[name] = decodeURIComponent(match.result[i + 1]);
   });
+
+  // Handlers that build a URL from req.url (e.g. to read query params) must see
+  // the route the caller actually requested, not the rewrite destination.
+  req.url = `${pathname}${url.search ? url.search.replace(/(\?|&)__path=[^&]*/, '$1').replace(/[?&]$/, '') : ''}`;
 
   try {
     const module = await match.route.load();

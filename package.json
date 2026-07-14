@@ -12,7 +12,8 @@
     "create-admin": "node scripts/create-admin.js",
     "migrate": "node scripts/migrate.js",
     "setup": "npm run migrate && npm run seed",
-    "setup-storage": "node scripts/setup-storage.js"
+    "setup-storage": "node scripts/setup-storage.js",
+    "generate-art": "node scripts/generate-art.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.20",
