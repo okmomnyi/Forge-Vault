@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 
 const VIRTUAL_ID = 'virtual:asset-manifest';
@@ -58,49 +58,17 @@ function assetManifest() {
 }
 
 /* ==========================================================================
-   Dev API router
+   Dev API
    ==========================================================================
-   Vercel routes /api/** to the matching file under api/ in production. Vite's
-   dev server does not, so this reimplements that mapping — including dynamic
-   [id] segments — and runs the same handler files unmodified. Without it none
-   of the backend is reachable during `npm run dev`.
+   In production Vercel routes every /api/* request to the single catch-all
+   function at api/[[...path]].js, which dispatches to a handler in
+   api/_handlers/. (One function, not 32, because Vercel's Hobby plan caps a
+   deployment at 12 — see the comment in that file.)
+
+   This does exactly the same thing for `npm run dev`: hand the request to the
+   same catch-all. Dev and production therefore share one router, so a route
+   that works locally cannot be missing in production.
    ========================================================================== */
-
-function collectRoutes(dir, apiRoot) {
-  if (!existsSync(dir)) return [];
-
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-
-    // `_lib` is shared code, not routes — same convention Vercel uses.
-    if (entry.isDirectory()) {
-      return entry.name.startsWith('_') ? [] : collectRoutes(full, apiRoot);
-    }
-
-    if (!entry.name.endsWith('.js')) return [];
-
-    const rel = relative(apiRoot, full).replaceAll('\\', '/').replace(/\.js$/, '');
-    const urlPath = `/api/${rel.replace(/\/index$/, '')}`;
-
-    // /api/products/[slug] -> ^/api/products/([^/]+)$
-    const paramNames = [];
-    const pattern = urlPath.replace(/\[([^\]]+)\]/g, (_, name) => {
-      paramNames.push(name);
-      return '([^/]+)';
-    });
-
-    return [
-      {
-        file: `/${relative(process.cwd(), full).replaceAll('\\', '/')}`,
-        regex: new RegExp(`^${pattern}/?$`),
-        paramNames,
-        // Static routes must win over dynamic ones: /api/products/index
-        // should not be shadowed by /api/products/[slug].
-        dynamic: paramNames.length > 0,
-      },
-    ];
-  });
-}
 
 function devApi() {
   return {
@@ -123,41 +91,8 @@ function devApi() {
     },
 
     configureServer(server) {
-      const apiRoot = join(process.cwd(), 'api');
-      const routes = collectRoutes(apiRoot, apiRoot).sort((a, b) => a.dynamic - b.dynamic);
-
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith('/api/')) return next();
-
-        const url = new URL(req.url, 'http://localhost');
-        const match = routes
-          .map((route) => ({ route, result: route.regex.exec(url.pathname) }))
-          .find(({ result }) => result);
-
-        if (!match) return next();
-
-        // Rebuild the request shape Vercel hands its handlers.
-        req.query = Object.fromEntries(url.searchParams);
-        match.route.paramNames.forEach((name, i) => {
-          req.query[name] = decodeURIComponent(match.result[i + 1]);
-        });
-
-        // Webhook handlers verify signatures over the exact bytes received, so
-        // they opt out of body parsing. Respect that here too.
-        const module = await server.ssrLoadModule(match.route.file);
-        const parseBody = module.config?.api?.bodyParser !== false;
-
-        if (parseBody && req.method !== 'GET' && req.method !== 'HEAD') {
-          const chunks = [];
-          for await (const chunk of req) chunks.push(chunk);
-          const raw = Buffer.concat(chunks).toString('utf8');
-
-          try {
-            req.body = raw ? JSON.parse(raw) : {};
-          } catch {
-            req.body = raw;
-          }
-        }
 
         // Express-style helpers the handlers expect from Vercel.
         res.status = (code) => {
@@ -170,10 +105,16 @@ function devApi() {
           return res;
         };
 
+        // The catch-all runs with bodyParser disabled (the Paystack webhook must
+        // see the exact bytes it was sent, or its HMAC will not verify), so we
+        // deliberately do NOT pre-parse the body here either. The handlers read
+        // the stream themselves via readJson/readRaw.
+
         try {
-          await module.default(req, res);
+          const { default: router } = await server.ssrLoadModule('/api/[[...path]].js');
+          await router(req, res);
         } catch (error) {
-          server.config.logger.error(`[dev-api] ${url.pathname}: ${error.message}\n${error.stack}`);
+          server.config.logger.error(`[dev-api] ${req.url}: ${error.message}\n${error.stack}`);
           if (!res.writableEnded) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
