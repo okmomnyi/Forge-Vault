@@ -166,11 +166,27 @@ export function footer() {
 
     <div class="mt-12 flex flex-col items-center gap-4 border-t border-slate-800 pt-8">
       <p class="text-sm text-slate-400">&copy; 2026 ForgeVault. All rights reserved.</p>
+
       <ul class="flex items-center gap-6">
         <li><a href="#" class="footer-link">Twitter</a></li>
         <li><a href="#" class="footer-link">Facebook</a></li>
         <li><a href="#" class="footer-link">Instagram</a></li>
       </ul>
+
+      <!-- Staff sign-in. Deliberately understated — it is for the shop's own
+           people, not customers. Safe to expose: /admin is noindex'd and the
+           panel needs a password AND an emailed 2FA code, with lockout after
+           repeated failures. Hiding the link was never the control.
+           rel=nofollow keeps it out of crawlers' link graphs. -->
+      <a href="/admin/login.html" rel="nofollow"
+         class="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 transition hover:text-slate-300">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" class="h-3.5 w-3.5" aria-hidden="true">
+          <rect x="4" y="10" width="16" height="10" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </svg>
+        Staff sign-in
+      </a>
     </div>
   </div>`;
 }

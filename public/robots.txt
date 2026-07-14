@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Staff and customer-private areas. These are already protected by
+# authentication and carry noindex headers — this simply keeps them out of
+# search results and crawl budget. It is a courtesy to crawlers, not a
+# security control: anything genuinely sensitive is behind a session check.
+Disallow: /admin/
+Disallow: /account.html
+Disallow: /orders.html
+Disallow: /order.html
+Disallow: /checkout.html
+Disallow: /cart.html
+Disallow: /api/
