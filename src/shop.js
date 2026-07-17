@@ -391,9 +391,41 @@ function initAccountPage() {
 
   show(params.get('mode') === 'register' ? 'register' : 'signin');
 
-  // Already signed in? Nothing to do here.
+  /**
+   * If already signed in:
+   *   - Came here with a `next` (routed here to authenticate for checkout, an
+   *     order, etc.)? Complete that — send them on.
+   *   - Otherwise they navigated to the account page directly. Do NOT bounce
+   *     them to the home page (that reads as the page "refreshing itself").
+   *     Show a signed-in panel instead, with a way to sign out and switch.
+   */
   loadSession().then((customer) => {
-    if (customer) location.href = nextPath();
+    if (!customer) return;
+
+    if (params.get('next')) {
+      location.href = nextPath();
+      return;
+    }
+
+    const intro = document.querySelector('[data-account-intro]');
+    const signedInPanel = document.querySelector('[data-panel="signedin"]');
+    if (!signedInPanel) {
+      // No panel to fall back to — keep the old behaviour rather than get stuck.
+      location.href = nextPath();
+      return;
+    }
+
+    tabs.classList.add('hidden');
+    Object.values(panels).forEach((panel) => panel.classList.add('hidden'));
+    signedInPanel.classList.remove('hidden');
+    if (intro) intro.textContent = 'You are already signed in.';
+    document.querySelector('[data-signedin-name]').textContent = customer.name?.split(' ')[0] ?? 'there';
+
+    signedInPanel.querySelector('[data-signedin-signout]')?.addEventListener('click', async () => {
+      const { signOut } = await import('./lib/auth.js');
+      await signOut();
+      location.reload(); // back to the sign-in / register forms, now signed out
+    });
   });
 
   const toVerify = (email) => {

@@ -23,6 +23,24 @@
         Sign in to check out, or create an account — it takes a minute.
       </p>
 
+      <!-- ============ Already signed in ============
+           Shown when a signed-in visitor opens this page directly (no `next`),
+           instead of bouncing them off it. -->
+      <section data-panel="signedin" class="mt-8 hidden">
+        <div class="card p-8 text-center">
+          <p class="eyebrow">Signed in</p>
+          <h2 class="mt-2 text-xl font-extrabold text-forge-ink">
+            Welcome back, <span data-signedin-name></span>
+          </h2>
+          <p class="mt-2 text-sm text-forge-muted">You are signed in and ready to shop.</p>
+          <div class="mt-7 space-y-3">
+            <a href="/orders.html" class="btn-primary w-full">Your orders</a>
+            <a href="/products.html" class="btn-outline w-full">Continue shopping</a>
+            <button type="button" data-signedin-signout class="link-all mx-auto mt-2">Sign out</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ Tabs ============ -->
       <div data-tabs class="mt-8 grid grid-cols-2 gap-1 rounded-none bg-forge-high p-1">
         <button type="button" data-tab="signin" class="rounded-none px-4 py-2 text-sm font-semibold transition">Sign in</button>
