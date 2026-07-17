@@ -2,8 +2,15 @@
 
 const formatters = new Map();
 
-/** Money is always integer cents on the wire. Formatting is the only place it becomes a decimal. */
-export function money(cents, currency = 'USD') {
+/**
+ * Money is always integer subunits on the wire (×100 for both USD and KES).
+ * Formatting is the only place it becomes a decimal.
+ *
+ * The default is KES because that is the store's settlement currency — Paystack
+ * rejects USD on this account. Post-order views pass the order's own currency
+ * explicitly, so historical USD orders still render correctly.
+ */
+export function money(cents, currency = 'KES') {
   if (!formatters.has(currency)) {
     formatters.set(
       currency,

@@ -173,7 +173,21 @@ const PRODUCTS = [
   },
 ];
 
-/** Same rule the API enforces: the badge is computed from the two prices. */
+/**
+ * The prices above are written as their original USD reference values (kept
+ * readable), and converted to KES here — Paystack settles this account in KES
+ * and rejects USD ("Currency not supported by merchant").
+ *
+ * Both USD and KES use a ×100 subunit, so the stored integer stays "cents"; the
+ * only real change is the exchange multiply. Rounded to the nearest KES 100 so
+ * prices read as retail figures rather than odd conversions. Re-running the seed
+ * is safe — it writes absolute values, it does not multiply what is already there.
+ */
+const KES_PER_USD = 130;
+const toKes = (usdCents) =>
+  usdCents == null ? null : Math.round((usdCents * KES_PER_USD) / 10000) * 10000;
+
+/** Same rule the API enforces: the badge is computed from the two (converted) prices. */
 const discountPercent = (price, oldPrice) =>
   oldPrice && oldPrice > price ? Math.round(((oldPrice - price) / oldPrice) * 100) : null;
 
@@ -192,22 +206,27 @@ async function main() {
 
   console.log('Seeding products…');
 
-  const rows = PRODUCTS.map((product) => ({
-    slug: product.slug,
-    title: product.title,
-    brand: product.brand,
-    category_id: categoryId.get(product.category) ?? null,
-    part_number: product.part_number ?? null,
-    description: product.description ?? null,
-    price_cents: product.price_cents,
-    old_price_cents: product.old_price_cents ?? null,
-    discount_percent: discountPercent(product.price_cents, product.old_price_cents),
-    stock: product.stock,
-    image_path: product.image_path ?? null,
-    is_active: true,
-    is_featured: product.is_featured ?? false,
-    is_deal: product.is_deal ?? false,
-  }));
+  const rows = PRODUCTS.map((product) => {
+    const price = toKes(product.price_cents);
+    const oldPrice = toKes(product.old_price_cents ?? null);
+
+    return {
+      slug: product.slug,
+      title: product.title,
+      brand: product.brand,
+      category_id: categoryId.get(product.category) ?? null,
+      part_number: product.part_number ?? null,
+      description: product.description ?? null,
+      price_cents: price,
+      old_price_cents: oldPrice,
+      discount_percent: discountPercent(price, oldPrice),
+      stock: product.stock,
+      image_path: product.image_path ?? null,
+      is_active: true,
+      is_featured: product.is_featured ?? false,
+      is_deal: product.is_deal ?? false,
+    };
+  });
 
   const { data: products, error: prodError } = await db
     .from('products')

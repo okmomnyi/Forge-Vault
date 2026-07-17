@@ -1,4 +1,4 @@
-import { siteUrl } from '../env.js';
+import { CURRENCY, siteUrl } from '../env.js';
 import {
   addressBlock,
   button,
@@ -229,7 +229,7 @@ export const abandonedCart = ({ cart, items }) => ({
     body: `
       ${heading('You left something behind')}
       ${paragraph('Your cart is still saved. Stock on used and OEM parts moves quickly, so if you still need these, it is worth completing the order.')}
-      ${itemsTable(items, { subtotal_cents: cart.total_cents, shipping_cents: 0, total_cents: cart.total_cents, currency: 'USD', refunded_cents: 0 })}
+      ${itemsTable(items, { subtotal_cents: cart.total_cents, shipping_cents: 0, total_cents: cart.total_cents, currency: CURRENCY, refunded_cents: 0 })}
       ${button('Complete your order', `${siteUrl()}/cart.html`)}
       ${paragraph('Not sure it fits? Reply with your VIN and we will confirm compatibility before you pay.')}
     `,
