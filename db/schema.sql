@@ -175,6 +175,15 @@ create index if not exists orders_created_idx on orders (created_at desc);
 alter table orders drop constraint if exists orders_refund_within_total;
 alter table orders add constraint orders_refund_within_total check (refunded_cents <= total_cents);
 
+-- The store prices and records orders in the display currency (USD), but the
+-- payment provider may settle in a different currency (Paystack → KES). The
+-- amount actually charged, in the provider's currency and subunit, is recorded
+-- here so the webhook can verify what the provider reports against what we asked
+-- it to charge — not against the USD order total, which would never match.
+-- Null means "same as the order total" (no conversion), keeping older rows valid.
+alter table orders add column if not exists charge_currency    text;
+alter table orders add column if not exists charge_amount_cents int;
+
 create table if not exists order_items (
   id                uuid primary key default gen_random_uuid(),
   order_id          uuid not null references orders(id) on delete cascade,
@@ -478,8 +487,11 @@ begin
     return;
   end if;
 
-  if p_amount_cents is distinct from v_order.total_cents then
-    raise exception 'AMOUNT_MISMATCH: expected %, got %', v_order.total_cents, p_amount_cents;
+  -- Verify against the amount we actually asked the provider to charge (in the
+  -- provider's currency), falling back to the order total when there was no
+  -- conversion. The webhook passes the provider-reported amount.
+  if p_amount_cents is distinct from coalesce(v_order.charge_amount_cents, v_order.total_cents) then
+    raise exception 'AMOUNT_MISMATCH: expected %, got %', coalesce(v_order.charge_amount_cents, v_order.total_cents), p_amount_cents;
   end if;
 
   -- Decrement stock, locking product rows in a deterministic order to avoid
@@ -510,7 +522,8 @@ begin
    where id = p_order_id;
 
   insert into payments (order_id, provider, provider_reference, status, amount_cents, currency, method, raw)
-  values (p_order_id, p_provider, p_provider_reference, 'succeeded', p_amount_cents, v_order.currency, p_method, p_raw)
+  values (p_order_id, p_provider, p_provider_reference, 'succeeded', p_amount_cents,
+          coalesce(v_order.charge_currency, v_order.currency), p_method, p_raw)
   on conflict (provider, provider_reference) where provider_reference is not null
   do update set status = 'succeeded', raw = excluded.raw, updated_at = now();
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHARGE_CURRENCY, conversionActive, toChargeAmount } from '../../_lib/env.js';
 import { handler, ok, readJson } from '../../_lib/http.js';
 import { availableProviders } from '../../_lib/payments/index.js';
 import { cartItemSchema, parseOrThrow, priceCart } from '../../_lib/orders.js';
@@ -29,6 +30,11 @@ async function quote(req, res) {
     shippingCents: priced.shippingCents,
     taxCents: priced.taxCents,
     totalCents: priced.totalCents,
+    // When settlement is in a different currency, tell the customer what they
+    // will actually be charged, so seeing KES on the provider page is expected.
+    charge: conversionActive()
+      ? { currency: CHARGE_CURRENCY, amountCents: toChargeAmount(priced.totalCents) }
+      : null,
     items: priced.lines.map((line) => ({
       productId: line.product_id,
       title: line.title,

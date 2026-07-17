@@ -3,6 +3,7 @@ import { audit, requireAdmin, requireCsrf, requireRole } from '../../../_lib/aut
 import { db, rpc, unwrap } from '../../../_lib/db.js';
 import { sendEmail } from '../../../_lib/email/send.js';
 import { badRequest, conflict, handler, notFound, ok, readJson } from '../../../_lib/http.js';
+import { toChargeAmount } from '../../../_lib/env.js';
 import { getOrder, parseOrThrow } from '../../../_lib/orders.js';
 import { getProvider } from '../../../_lib/payments/index.js';
 
@@ -102,12 +103,19 @@ async function create(req, res) {
 
   const refund = created[0];
 
+  // The refund is accounted in the order's display currency (USD), but the
+  // provider moves money in the charged currency (KES). Convert for the provider
+  // call; the refunds ledger stays in USD. Prefer the payment's own currency —
+  // that is exactly what was charged, so the refund matches to the cent.
+  const chargedInDisplayCurrency = (payment.currency ?? order.currency) === order.currency;
+  const providerAmountCents = chargedInDisplayCurrency ? amountCents : toChargeAmount(amountCents);
+
   let result;
   try {
     result = await provider.refund({
       reference: payment.provider_reference,
-      amountCents,
-      currency: order.currency,
+      amountCents: providerAmountCents,
+      currency: payment.currency ?? order.currency,
       reason: input.reason,
     });
   } catch (error) {

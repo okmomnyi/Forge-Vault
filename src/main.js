@@ -3,7 +3,8 @@ import { get, post } from './lib/api.js';
 import { addToCart, cartCount, onCartChange } from './lib/cart.js';
 import { esc, money } from './lib/format.js';
 import { applySiteImages, hydrateStaticImages, imageTag, installImageFallback } from './lib/images.js';
-import { initHeader, initSliders, initSmoothScroll, updateCartBadge } from './lib/ui.js';
+import { loadSession } from './lib/auth.js';
+import { initHeader, initSliders, initSmoothScroll, paintAccountState, updateCartBadge } from './lib/ui.js';
 import { mountChrome } from './partials.js';
 
 /* =========================================================================
@@ -306,6 +307,10 @@ function boot() {
 
   updateCartBadge(cartCount());
   onCartChange(() => updateCartBadge(cartCount()));
+
+  // Swap the header "Sign in" for the Profile menu once the session resolves —
+  // home/about/contact need this too, not just the shop pages.
+  paintAccountState(loadSession);
 }
 
 if (document.readyState === 'loading') {

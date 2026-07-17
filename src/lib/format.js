@@ -6,11 +6,11 @@ const formatters = new Map();
  * Money is always integer subunits on the wire (×100 for both USD and KES).
  * Formatting is the only place it becomes a decimal.
  *
- * The default is KES because that is the store's settlement currency — Paystack
- * rejects USD on this account. Post-order views pass the order's own currency
- * explicitly, so historical USD orders still render correctly.
+ * The store displays in USD. Payment is converted to the provider's settlement
+ * currency (KES) at checkout only — see the checkout page. Post-order views pass
+ * the order's own currency explicitly, so any order renders in its own currency.
  */
-export function money(cents, currency = 'KES') {
+export function money(cents, currency = 'USD') {
   if (!formatters.has(currency)) {
     formatters.set(
       currency,

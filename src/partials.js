@@ -77,10 +77,14 @@ export function header(page = '') {
           </a>
 
           <div data-account-menu class="hidden items-center gap-3">
-            <a href="/orders.html" class="text-sm font-semibold text-forge-muted hover:text-forge-orange">
-              <span data-account-name></span>
+            <a href="/account.html"
+               class="flex items-center gap-1.5 px-2 py-1.5 font-display text-sm font-semibold uppercase tracking-wide text-forge-muted transition hover:text-forge-orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" aria-hidden="true">
+                <circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/>
+              </svg>
+              <span data-account-name>Profile</span>
             </a>
-            <button type="button" data-signout class="text-xs font-semibold text-forge-outline hover:text-forge-error">
+            <button type="button" data-signout class="font-mono text-[11px] uppercase tracking-widest text-forge-outline transition hover:text-forge-error">
               Sign out
             </button>
           </div>

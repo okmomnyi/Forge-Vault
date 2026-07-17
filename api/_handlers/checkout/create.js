@@ -65,8 +65,10 @@ async function create(req, res) {
     init = await provider.initialize({
       order,
       email: order.email,
-      amountCents: order.total_cents,
-      currency: order.currency,
+      // Charge in the provider's currency (KES), not the display currency (USD).
+      // These equal the order total when no conversion is configured.
+      amountCents: order.charge_amount_cents ?? order.total_cents,
+      currency: order.charge_currency ?? order.currency,
       callbackUrl: `${siteUrl()}/order.html?id=${order.id}&token=${order.access_token}`,
     });
   } catch (error) {
@@ -92,8 +94,9 @@ async function create(req, res) {
       provider: provider.id,
       provider_reference: init.reference,
       status: 'initiated',
-      amount_cents: order.total_cents,
-      currency: order.currency,
+      // Payments are recorded in the charged currency (what the provider moves).
+      amount_cents: order.charge_amount_cents ?? order.total_cents,
+      currency: order.charge_currency ?? order.currency,
     }),
     'payment:init',
   );

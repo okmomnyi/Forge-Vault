@@ -129,10 +129,12 @@ function smoothNoise(x, y, seed, scale) {
 function render(width, height, { seed, hueShift = 0, lines = true, vignette = true }) {
   const buf = Buffer.alloc(width * height * 3);
 
-  // Palette anchors.
-  const dark = [0x0b, 0x12, 0x20];
-  const mid = [0x11, 0x1c, 0x33];
-  const accent = [0x1e, 0x3a, 0x8a];
+  // Palette anchors — Forge Vault. Deliberately LIGHTER than the page
+  // background (#131313) so an image tile reads as an image on the dark theme,
+  // not an empty panel. Machined steel-charcoal ramping into orange.
+  const dark = [0x26, 0x25, 0x24]; // steel charcoal — already above page bg
+  const mid = [0x3b, 0x35, 0x30]; // warm graphite
+  const accent = [0xff, 0x5f, 0x00]; // machined orange
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -172,10 +174,11 @@ function render(width, height, { seed, hueShift = 0, lines = true, vignette = tr
       if (lines) {
         const stripe = (x * 0.5 + y) % 96;
         if (stripe < 1.4) {
-          const strength = 10 + 26 * (1 - v);
-          r += strength * 0.5;
-          g += strength * 0.7;
-          b += strength;
+          // Warm machined hairline (orange-tinted), matching the theme.
+          const strength = 12 + 30 * (1 - v);
+          r += strength;
+          g += strength * 0.62;
+          b += strength * 0.28;
         }
       }
 
@@ -184,7 +187,7 @@ function render(width, height, { seed, hueShift = 0, lines = true, vignette = tr
         const dx = u - 0.5;
         const dy = v - 0.5;
         const falloff = 1 - Math.min(1, (dx * dx + dy * dy) * 1.5);
-        const k = 0.55 + 0.45 * falloff;
+        const k = 0.72 + 0.28 * falloff;
         r *= k;
         g *= k;
         b *= k;
@@ -215,6 +218,9 @@ function render(width, height, { seed, hueShift = 0, lines = true, vignette = tr
 /** `--dry-run` renders and reports sizes without uploading or touching the DB. */
 const DRY_RUN = process.argv.includes('--dry-run');
 
+/** Per-run version stamped onto stored URLs to defeat the CDN's 1-year cache. */
+const ART_VERSION = Date.now();
+
 // A hero is above the fold. Anything much over this is a broken page on a phone
 // and burns the free tier's 5 GB egress allowance fast.
 const BUDGET_KB = { hero: 400, tile: 150, partner: 80 };
@@ -243,7 +249,11 @@ async function upload(name, png, budgetKb) {
 
   if (error) throw new Error(`${name}: ${error.message}`);
 
-  const publicUrl = `${url.replace(/\/+$/, '')}/storage/v1/object/public/${bucket}/${key}`;
+  // Cache-bust: the object key is stable (so re-runs overwrite, no orphans), but
+  // the public URL is served with a 1-year cache. Appending a per-run version
+  // to the URL we store makes browsers and the CDN treat regenerated art as new,
+  // instead of showing the previous version until the cache expires.
+  const publicUrl = `${url.replace(/\/+$/, '')}/storage/v1/object/public/${bucket}/${key}?v=${ART_VERSION}`;
   console.log(`  ${name.padEnd(22)} ${kb.toFixed(0).padStart(4)} KB${flag}  ${publicUrl}`);
   return publicUrl;
 }

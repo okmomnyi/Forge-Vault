@@ -64,11 +64,19 @@ export async function paintAccountState(loadSession) {
   menu.classList.remove('hidden');
   menu.classList.add('flex');
 
-  // First name only — the header is not the place for someone's full legal name.
-  root.querySelector('[data-account-name]').textContent = customer.name?.split(' ')[0] ?? 'Account';
+  // Labelled "Profile" (not "Sign in", and not just a bare name) so a signed-in
+  // visitor sees a clear account tab. First name in the title for a light touch.
+  const nameEl = root.querySelector('[data-account-name]');
+  if (nameEl) {
+    nameEl.textContent = 'Profile';
+    nameEl.closest('a')?.setAttribute('title', `Signed in as ${customer.name ?? customer.email}`);
+  }
 
   if (mobile) {
     mobile.innerHTML = `
+      <a href="/account.html" class="block rounded-none px-2 py-3 text-sm font-semibold text-forge-muted hover:bg-forge-low">
+        Profile
+      </a>
       <a href="/orders.html" class="block rounded-none px-2 py-3 text-sm font-semibold text-forge-muted hover:bg-forge-low">
         Your orders
       </a>

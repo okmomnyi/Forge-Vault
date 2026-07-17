@@ -39,3 +39,32 @@ export const FREE_SHIPPING_THRESHOLD_CENTS = Number(optionalEnv('FREE_SHIPPING_T
 
 /** Tax rate as a decimal, e.g. 0.21 for 21% VAT. 0 disables tax. */
 export const TAX_RATE = Number(optionalEnv('TAX_RATE', '0'));
+
+/* ---------------------------------------------------------------------------
+   Payment-currency conversion
+   ---------------------------------------------------------------------------
+   The store displays and records orders in CURRENCY (USD). Some providers can't
+   settle that currency — Paystack rejects USD on a KES account. When a charge
+   currency is configured, the amount is converted to it at the payment step
+   only; nothing the customer sees changes.
+
+   Both USD and KES use a ×100 subunit, so converting is a straight multiply by
+   the rate on the integer "cents".
+   ---------------------------------------------------------------------------- */
+
+export const CHARGE_CURRENCY = optionalEnv('PAYMENT_CHARGE_CURRENCY', '').toUpperCase() || CURRENCY;
+
+export const FX_RATE = Number(optionalEnv('PAYMENT_FX_RATE', '1')) || 1;
+
+/** True when a real conversion is in effect (different currency AND a rate). */
+export const conversionActive = () => CHARGE_CURRENCY !== CURRENCY && FX_RATE > 0 && FX_RATE !== 1;
+
+/**
+ * Converts a display-currency amount (cents) to the charge currency (cents).
+ * Rounds to the nearest whole charge-currency unit so the provider page shows a
+ * tidy figure. A no-op when no conversion is configured.
+ */
+export function toChargeAmount(displayCents) {
+  if (!conversionActive()) return displayCents;
+  return Math.round((displayCents * FX_RATE) / 100) * 100;
+}

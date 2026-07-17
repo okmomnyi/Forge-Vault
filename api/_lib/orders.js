@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { db, unwrap } from './db.js';
-import { CURRENCY, FREE_SHIPPING_THRESHOLD_CENTS, SHIPPING_FLAT_CENTS, TAX_RATE } from './env.js';
+import {
+  CHARGE_CURRENCY,
+  CURRENCY,
+  FREE_SHIPPING_THRESHOLD_CENTS,
+  SHIPPING_FLAT_CENTS,
+  TAX_RATE,
+  toChargeAmount,
+} from './env.js';
 import { badRequest, conflict, notFound } from './http.js';
 
 /* ==========================================================================
@@ -160,6 +167,10 @@ export async function createOrder(input) {
         shipping_cents: priced.shippingCents,
         tax_cents: priced.taxCents,
         total_cents: priced.totalCents,
+        // What the payment provider will actually be asked to charge. Equal to
+        // the total when no conversion is configured; KES-converted otherwise.
+        charge_currency: CHARGE_CURRENCY,
+        charge_amount_cents: toChargeAmount(priced.totalCents),
         ship_name: input.name,
         ship_line1: input.shipping.line1,
         ship_line2: input.shipping.line2 || null,

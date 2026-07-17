@@ -607,7 +607,16 @@ async function initCheckoutPage() {
       <div class="mt-4 flex items-baseline justify-between border-t-2 border-forge-orange pt-4">
         <span class="font-extrabold text-forge-ink">Total</span>
         <span class="text-2xl font-extrabold text-forge-ink">${money(quote.totalCents)}</span>
-      </div>`;
+      </div>
+      ${
+        quote.charge
+          ? `<p class="mt-3 border border-forge-line bg-forge-lowest px-3 py-2 font-mono text-[11px] leading-relaxed text-forge-warm">
+               Billed in ${esc(quote.charge.currency)}. You will be charged
+               <span class="font-semibold text-forge-ink">${money(quote.charge.amountCents, quote.charge.currency)}</span>
+               at today's rate on the secure payment page.
+             </p>`
+          : ''
+      }`;
 
     // Only offer the methods the server says are actually configured.
     const methods = document.querySelector('[data-payment-methods]');
