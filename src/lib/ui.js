@@ -69,11 +69,11 @@ export async function paintAccountState(loadSession) {
 
   if (mobile) {
     mobile.innerHTML = `
-      <a href="/orders.html" class="block rounded-lg px-2 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+      <a href="/orders.html" class="block rounded-none px-2 py-3 text-sm font-semibold text-forge-muted hover:bg-forge-low">
         Your orders
       </a>
       <button type="button" data-signout
-              class="block w-full rounded-lg px-2 py-3 text-left text-sm font-semibold text-slate-500 hover:bg-slate-50">
+              class="block w-full rounded-none px-2 py-3 text-left text-sm font-semibold text-forge-outline hover:bg-forge-low">
         Sign out
       </button>`;
   }
@@ -213,9 +213,9 @@ export function setStatus(el, tone, message) {
   el.textContent = message ?? '';
 
   const classes = {
-    success: 'mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800',
-    error: 'mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800',
-    info: 'mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800',
+    success: 'mt-4 rounded-none border border-forge-line bg-forge-high px-4 py-3 text-sm font-medium text-forge-salmon',
+    error: 'mt-4 rounded-none border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800',
+    info: 'mt-4 rounded-none border border-forge-line bg-forge-high px-4 py-3 text-sm font-medium text-forge-salmon',
     idle: 'sr-only',
   };
 

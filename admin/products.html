@@ -5,19 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Products — ForgeVault Admin</title>
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="theme-color" content="#131313" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   </head>
 
-  <body class="min-h-screen bg-slate-100">
-    <header data-admin-shell class="bg-navy-900"></header>
+  <body class="min-h-screen bg-forge-bg">
+    <header data-admin-shell class="bg-forge-lowest"></header>
 
     <main class="container-page py-10">
       <div class="flex flex-wrap items-end justify-between gap-4">
-        <h1 class="text-2xl font-extrabold tracking-tight text-slate-900">Products</h1>
+        <h1 class="text-2xl font-extrabold tracking-tight text-forge-ink">Products</h1>
         <button type="button" data-new-product class="btn-primary">+ New part</button>
       </div>
 
@@ -26,9 +26,9 @@
 
     <!-- ============ Create / edit dialog ============ -->
     <dialog data-product-dialog
-            class="w-full max-w-2xl rounded-2xl p-0 backdrop:bg-slate-900/50 open:animate-none">
+            class="w-full max-w-2xl rounded-none p-0 backdrop:bg-black/70 open:animate-none">
       <form data-product-form novalidate class="p-6 sm:p-8">
-        <h2 data-dialog-title class="text-lg font-extrabold text-slate-900">New part</h2>
+        <h2 data-dialog-title class="text-lg font-extrabold text-forge-ink">New part</h2>
 
         <div class="mt-6 grid gap-5 sm:grid-cols-2">
           <div class="sm:col-span-2">
@@ -41,7 +41,7 @@
             <label for="p-slug" class="field-label">Slug <span class="text-red-600" aria-hidden="true">*</span></label>
             <input type="text" id="p-slug" name="slug" required maxlength="200" pattern="[a-z0-9\-]+"
                    class="field-input font-mono text-xs" />
-            <p class="mt-1 text-xs text-slate-500">Used in the URL. Auto-filled from the title.</p>
+            <p class="mt-1 text-xs text-forge-outline">Used in the URL. Auto-filled from the title.</p>
             <p data-error-for="slug" class="field-error"></p>
           </div>
 
@@ -85,7 +85,7 @@
           <div>
             <label for="p-old-price" class="field-label">Was (USD)</label>
             <input type="number" id="p-old-price" name="oldPrice" min="0" step="0.01" class="field-input" placeholder="Leave blank if not on sale" />
-            <p class="mt-1 text-xs text-slate-500">The discount badge is calculated from this — you cannot set it by hand.</p>
+            <p class="mt-1 text-xs text-forge-outline">The discount badge is calculated from this — you cannot set it by hand.</p>
             <p data-error-for="oldPriceCents" class="field-error"></p>
           </div>
 
@@ -100,14 +100,14 @@
 
             <div class="flex items-start gap-3">
               <!-- Preview. Shows the gradient placeholder until a photo exists. -->
-              <div data-image-preview class="ph ph-2 h-16 w-16 shrink-0 overflow-hidden rounded-lg"></div>
+              <div data-image-preview class="ph ph-2 h-16 w-16 shrink-0 overflow-hidden rounded-none"></div>
 
               <div class="min-w-0 flex-1">
                 <label class="btn-outline w-full cursor-pointer justify-center text-xs">
                   <input type="file" accept="image/*" class="sr-only" data-product-file />
                   Upload photo
                 </label>
-                <p data-upload-status class="mt-1 text-xs text-slate-500">
+                <p data-upload-status class="mt-1 text-xs text-forge-outline">
                   Hosted on ImgBB. Large photos are resized automatically.
                 </p>
               </div>
@@ -130,16 +130,16 @@
           <fieldset class="sm:col-span-2">
             <legend class="field-label">Visibility</legend>
             <div class="mt-2 flex flex-wrap gap-5">
-              <label class="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="isActive" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+              <label class="flex items-center gap-2 text-sm text-forge-muted">
+                <input type="checkbox" name="isActive" class="h-4 w-4 rounded text-forge-orange focus:ring-forge-orange" />
                 Visible in the shop
               </label>
-              <label class="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="isFeatured" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+              <label class="flex items-center gap-2 text-sm text-forge-muted">
+                <input type="checkbox" name="isFeatured" class="h-4 w-4 rounded text-forge-orange focus:ring-forge-orange" />
                 Recommended For You
               </label>
-              <label class="flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" name="isDeal" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500" />
+              <label class="flex items-center gap-2 text-sm text-forge-muted">
+                <input type="checkbox" name="isDeal" class="h-4 w-4 rounded text-forge-orange focus:ring-forge-orange" />
                 Deals You May Like
               </label>
             </div>

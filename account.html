@@ -5,28 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sign In — ForgeVault</title>
     <meta name="robots" content="noindex" />
-    <meta name="theme-color" content="#0b1220" />
+    <meta name="theme-color" content="#131313" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   </head>
 
   <body class="min-h-screen">
-    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-blue-700 focus:shadow-lg">Skip to main content</a>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-none focus:bg-forge-orange focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-black focus:shadow-lg">Skip to main content</a>
 
-    <header data-header class="sticky top-0 z-50 bg-white shadow-header"></header>
+    <header data-header class="sticky top-0 z-50 bg-forge-panel border-b border-forge-line"></header>
 
     <main id="main" class="mx-auto w-full max-w-md px-4 py-12 sm:py-16">
-      <h1 class="text-center text-2xl font-extrabold tracking-tight text-slate-900">Your account</h1>
-      <p data-account-intro class="mt-2 text-center text-sm text-slate-500">
+      <h1 class="text-center text-2xl font-extrabold tracking-tight text-forge-ink">Your account</h1>
+      <p data-account-intro class="mt-2 text-center text-sm text-forge-outline">
         Sign in to check out, or create an account — it takes a minute.
       </p>
 
       <!-- ============ Tabs ============ -->
-      <div data-tabs class="mt-8 grid grid-cols-2 gap-1 rounded-xl bg-slate-200 p-1">
-        <button type="button" data-tab="signin" class="rounded-lg px-4 py-2 text-sm font-semibold transition">Sign in</button>
-        <button type="button" data-tab="register" class="rounded-lg px-4 py-2 text-sm font-semibold transition">Create account</button>
+      <div data-tabs class="mt-8 grid grid-cols-2 gap-1 rounded-none bg-forge-high p-1">
+        <button type="button" data-tab="signin" class="rounded-none px-4 py-2 text-sm font-semibold transition">Sign in</button>
+        <button type="button" data-tab="register" class="rounded-none px-4 py-2 text-sm font-semibold transition">Create account</button>
       </div>
 
       <!-- ============ Sign in ============ -->
@@ -64,14 +64,14 @@
             <div>
               <label for="rg-email" class="field-label">Email</label>
               <input type="email" id="rg-email" name="email" required autocomplete="email" class="field-input" />
-              <p class="mt-1 text-xs text-slate-500">We send a 6-digit code here to confirm it is yours.</p>
+              <p class="mt-1 text-xs text-forge-outline">We send a 6-digit code here to confirm it is yours.</p>
               <p data-error-for="email" class="field-error"></p>
             </div>
 
             <div>
               <label for="rg-password" class="field-label">Password</label>
               <input type="password" id="rg-password" name="password" required autocomplete="new-password" class="field-input" />
-              <p class="mt-1 text-xs text-slate-500">At least 10 characters, with an uppercase letter and a number.</p>
+              <p class="mt-1 text-xs text-forge-outline">At least 10 characters, with an uppercase letter and a number.</p>
               <p data-error-for="password" class="field-error"></p>
             </div>
           </div>
@@ -84,9 +84,9 @@
       <!-- ============ Verify ============ -->
       <section data-panel="verify" class="mt-6 hidden">
         <form data-verify-form novalidate class="card p-6 sm:p-8">
-          <h2 class="text-lg font-extrabold text-slate-900">Check your email</h2>
-          <p class="mt-2 text-sm leading-relaxed text-slate-600">
-            We sent a 6-digit code to <strong data-verify-email class="text-slate-900"></strong>.
+          <h2 class="text-lg font-extrabold text-forge-ink">Check your email</h2>
+          <p class="mt-2 text-sm leading-relaxed text-forge-muted">
+            We sent a 6-digit code to <strong data-verify-email class="text-forge-ink"></strong>.
           </p>
 
           <label for="vf-code" class="field-label mt-6">Verification code</label>
@@ -97,9 +97,9 @@
           <button type="submit" data-submit class="btn-primary mt-6 w-full">Verify and continue</button>
           <p data-verify-status role="status" aria-live="polite" class="sr-only"></p>
 
-          <p class="mt-5 text-center text-sm text-slate-500">
+          <p class="mt-5 text-center text-sm text-forge-outline">
             Didn't get it?
-            <button type="button" data-resend class="font-semibold text-blue-600 hover:text-blue-700">Send a new code</button>
+            <button type="button" data-resend class="font-semibold text-forge-orange hover:text-forge-salmon">Send a new code</button>
           </p>
         </form>
       </section>
