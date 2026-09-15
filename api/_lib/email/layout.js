@@ -80,11 +80,17 @@ export function itemsTable(items, order) {
       ${rows}
       <tr><td colspan="2" style="height:12px;"></td></tr>
       ${totalRow('Subtotal', formatMoney(order.subtotal_cents, currency))}
-      ${totalRow('Shipping', order.shipping_cents ? formatMoney(order.shipping_cents, currency) : 'Free')}
+      ${order.kind === 'gift_card' ? '' : totalRow('Shipping', order.shipping_cents ? formatMoney(order.shipping_cents, currency) : 'Free')}
       ${order.tax_cents ? totalRow('Tax', formatMoney(order.tax_cents, currency)) : ''}
       ${refunded}
       <tr><td colspan="2" style="border-top:2px solid ${BRAND.ink};height:8px;"></td></tr>
       ${totalRow('Total', formatMoney(order.total_cents, currency), true)}
+      ${
+        order.gift_card_cents > 0
+          ? totalRow('Paid by gift card', `-${formatMoney(order.gift_card_cents, currency)}`) +
+            totalRow('Paid by card', formatMoney(order.total_cents - order.gift_card_cents, currency))
+          : ''
+      }
     </table>`;
 }
 

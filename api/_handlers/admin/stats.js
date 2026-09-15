@@ -12,7 +12,10 @@ async function stats(req, res) {
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
   const [orders, lowStock, openRefunds, failedEmails] = await Promise.all([
-    db().from('orders').select('status, total_cents, refunded_cents, created_at').gte('created_at', since),
+    db()
+      .from('orders')
+      .select('status, total_cents, refunded_cents, gift_card_cents, gift_card_refunded_cents, created_at')
+      .gte('created_at', since),
     db().from('products').select('id, title, stock').eq('is_active', true).lte('stock', 2).order('stock'),
     db().from('refunds').select('id, amount_cents').in('status', ['requested', 'processing']),
     db().from('email_log').select('id').eq('status', 'failed').gte('created_at', since),
@@ -23,7 +26,20 @@ async function stats(req, res) {
   const paid = rows.filter((row) => PAID.includes(row.status));
 
   // Revenue is net of refunds. Reporting gross here would be flattering and wrong.
-  const revenueCents = paid.reduce((sum, row) => sum + row.total_cents - row.refunded_cents, 0);
+  //
+  // It is also net of gift card credit spent: the money for a gift card was
+  // counted when the card was SOLD, so parts later paid for with that card are
+  // not new money. Counting both would report a $50 card spent on a $50 part as
+  // $100 of revenue. Credit refunded back onto a card is added back for the same
+  // reason, since it was never cash leaving the business.
+  const revenueCents = paid.reduce(
+    (sum, row) =>
+      sum +
+      row.total_cents -
+      row.refunded_cents -
+      (row.gift_card_cents - row.gift_card_refunded_cents),
+    0,
+  );
 
   const byStatus = rows.reduce((acc, row) => {
     acc[row.status] = (acc[row.status] ?? 0) + 1;

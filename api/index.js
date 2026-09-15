@@ -75,6 +75,10 @@ const ROUTES = [
   ['/api/checkout/quote', () => import('./_handlers/checkout/quote.js')],
   ['/api/checkout/create', () => import('./_handlers/checkout/create.js')],
 
+  // ---- Gift cards ----
+  ['/api/gift-cards/purchase', () => import('./_handlers/gift-cards/purchase.js')],
+  ['/api/gift-cards/balance', () => import('./_handlers/gift-cards/balance.js')],
+
   // ---- Orders & refunds (customer) ----
   ['/api/orders', () => import('./_handlers/orders/index.js')],
   ['/api/orders/:id', () => import('./_handlers/orders/[id].js')],
@@ -97,10 +101,12 @@ const ROUTES = [
   ['/api/admin/products', () => import('./_handlers/admin/products/index.js')],
   ['/api/admin/products/:id', () => import('./_handlers/admin/products/[id].js')],
   ['/api/admin/orders', () => import('./_handlers/admin/orders/index.js')],
+  ['/api/admin/orders/reconcile', () => import('./_handlers/admin/orders/reconcile.js')],
   ['/api/admin/orders/:id', () => import('./_handlers/admin/orders/[id].js')],
   ['/api/admin/refunds', () => import('./_handlers/admin/refunds/index.js')],
   ['/api/admin/refunds/create', () => import('./_handlers/admin/refunds/create.js')],
   ['/api/admin/refunds/:id', () => import('./_handlers/admin/refunds/[id].js')],
+  ['/api/admin/gift-cards/:id/reissue', () => import('./_handlers/admin/gift-cards/reissue.js')],
 ];
 
 /** Compiles '/api/products/:slug' into a matcher. */

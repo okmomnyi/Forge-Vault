@@ -20,7 +20,8 @@ npm run build
 | `/products.html`  | Catalogue with search and category filter                           |
 | `/product.html`   | Part detail                                                         |
 | `/cart.html`      | Cart (totals priced server-side)                                    |
-| `/checkout.html`  | Details → emailed code → payment                                    |
+| `/checkout.html`  | Details → emailed code → payment (accepts a gift card code)         |
+| `/gift-cards.html`| Buy a gift card, check a balance, gift card terms                   |
 | `/order.html`     | Order status + refund request (needs the access token from email)   |
 | `/about.html`     | About                                                               |
 | `/contact.html`   | Contact + map + form                                                |
@@ -29,7 +30,8 @@ npm run build
 ## Setup
 
 **1. Database.** Create a Supabase project, then run `db/schema.sql` in the SQL editor.
-It creates 15 tables plus the SQL functions that make payment and refunds atomic.
+It creates 19 tables plus the SQL functions that make payment, refunds and gift card balances atomic.
+The file is idempotent, so on an existing database `npm run migrate` applies new changes (such as gift cards) in place.
 
 **2. Seed and create an admin.**
 
@@ -71,6 +73,15 @@ control. Email ownership is proven once at signup, which is why there is no per-
 The browser redirect back from the provider is **not** trusted — a customer can forge it.
 Only a signed webhook, re-confirmed against the provider's own API, marks an order paid.
 
+**Declined and abandoned payments.** Paystack sends a webhook only for `charge.success`, never for a
+declined card or a closed payment page, so those orders would otherwise sit on "Awaiting payment"
+forever. `api/_lib/reconcile.js` asks Paystack's verify API instead and applies its answer through the
+same code as the webhook: declined → `payment_failed`, abandoned for over an hour → `cancelled`, and
+paid-but-webhook-missed → committed as paid. It runs from the daily cron, when a customer lands back on
+their order page, and from **Check pending payments** on the admin orders page. The one-hour grace exists
+because Paystack reports a transaction nobody has tried to pay yet as "abandoned" too; a payment that
+completes after an order was closed is still confirmed by its webhook.
+
 ## Payments
 
 Adapters behind one interface (`api/_lib/payments/`), so nothing else in the system
@@ -96,6 +107,48 @@ chargeback and no recall. Pick a provider (Coinbase Commerce, BTCPay, NOWPayment
 those policies, then fill in the four methods. `api/_lib/payments/crypto.js` documents exactly
 what has to be decided.
 
+## Gift cards
+
+Customers buy a card for $10 to $500 on `/gift-cards.html`. It is emailed to a recipient, and spent at checkout.
+
+```
+buy     →  POST /api/gift-cards/purchase   REQUIRES a session. Creates an order (kind = 'gift_card')
+                                           and a PENDING card with no code, then starts payment.
+        →  POST /api/webhooks/paystack     confirm_order_payment activates the card with a freshly
+                                           generated code, in the same transaction as the payment.
+                                           The code is emailed to the recipient; the buyer's receipt
+                                           does not carry it.
+
+spend   →  POST /api/checkout/quote        with giftCode: shows what the card covers
+        →  POST /api/checkout/create       with giftCode: holds the credit as the order is created.
+                                           If the card covers everything, the order is confirmed on
+                                           the spot (no provider); otherwise the rest goes to Paystack.
+
+balance →  POST /api/gift-cards/balance    no account needed, rate limited, code in the body not the URL
+```
+
+The properties, and where they live:
+
+- **The code is money, so only its SHA-256 is stored** (`gift_cards.code_hash`), like a session token. It is
+  16 characters of Crockford base32 from a CSPRNG (80 bits). The plaintext exists once, in the recipient's
+  email. A lost or misdirected code is fixed by **reissuing** from the admin order page: new code, same
+  balance, old code dead in the same statement.
+- **Balances only move inside SQL functions** (`hold_gift_card`, `release_gift_card_hold`,
+  `confirm_order_payment`, `record_refund_success`, `void_gift_card_for_refund`, `reverse_gift_card_void`,
+  `reissue_gift_card`). Each locks the row and writes an append-only `gift_card_transactions` ledger row.
+  CHECK constraints are the backstop: a balance cannot go negative, cannot exceed what was paid, and an
+  order cannot have more credit returned than it used.
+- **Credit is held when the order is created**, so it cannot be spent twice while the customer is on the
+  payment page. An unpaid order's hold is released when it is cancelled, when payment fails to start, and by
+  the daily cron after 24 hours. If a payment lands after release, the confirm re-takes the credit, or, if
+  it has been spent meanwhile, flags the paid order for a human exactly like a last-unit stock race.
+- **Refunds follow the money.** On an order paid partly by gift card, the paying card is refunded first (up
+  to what it paid) and the rest goes back onto the gift card. Refunding a gift card *purchase* is capped at
+  the unspent balance, which is voided **before** the provider is called, and restored if the provider refuses.
+- **Revenue is not double-counted.** A card is counted when sold; parts paid for with it are not counted again.
+- Gift cards cannot buy gift cards (enforced by a CHECK), carry no tax (tax applies when spent on parts),
+  and do not expire.
+
 ## Emails
 
 Brevo (transactional REST API), via `api/_lib/email/`. Templates are pure functions — no I/O — so each can be
@@ -103,7 +156,8 @@ rendered in isolation. Every send is written to `email_log`, so "I never got my 
 has an answer.
 
 Customer: verification code · order confirmation/receipt · payment failed · shipped ·
-delivered · refund issued · refund declined · abandoned cart · review request
+delivered · refund issued · refund declined · abandoned cart · review request ·
+gift card delivery (to the recipient, with the code) · gift card receipt (to the buyer, without it)
 Admin: 2FA code · new order · refund requested · **paid-but-unfulfillable** (urgent)
 
 Delivery never breaks the operation that triggered it. If Brevo is down, a paid order stays
@@ -125,7 +179,7 @@ npm run check-email                 # is EMAIL_FROM actually a verified sender?
 npm run check-email you@email.com   # ...and send a real message to prove it
 ```
 
-The two time-based emails (abandoned cart, review request) are driven by Vercel Cron hitting
+The two time-based emails (abandoned cart, review request), and releasing gift card holds on abandoned orders, are driven by Vercel Cron hitting
 `/api/cron/lifecycle` daily at 03:00 (Vercel's Hobby plan rejects any cron more frequent than once a day). That endpoint requires `CRON_SECRET` — an unguarded endpoint
 that sends email is an open relay.
 
@@ -205,17 +259,19 @@ must never be given a `VITE_` prefix.
 
 ```
 api/
-  _lib/           db · env · http (headers, rate limit) · auth · otp · orders · webhooks
-    email/        layout · templates · send
+  _lib/           db · env · http (headers, rate limit) · auth · otp · orders · webhooks · gift-cards
+    email/        layout · templates · templates-gift-cards · send
     payments/     provider (interface) · paystack · crypto (stub)
   admin/          auth/{login,verify,session} · products · orders · refunds · stats
   checkout/       quote · create · verify · resend-code
+  gift-cards/     purchase · balance        (admin: gift-cards/:id/reissue)
   webhooks/       paystack
   cron/           lifecycle
-db/schema.sql     15 tables + atomic payment/refund/restock functions
+db/schema.sql     19 tables + atomic payment/refund/restock/gift card functions
 scripts/          seed.js · create-admin.js
 src/
   lib/            api · cart · format · images · ui
   main.js         storefront   shop.js  products/cart/checkout/order   admin.js  admin panel
+  gift-cards.js   gift card purchase + balance check
   partials.js     shared header + footer
 ```

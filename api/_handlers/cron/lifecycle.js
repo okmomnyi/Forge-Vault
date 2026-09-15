@@ -1,8 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
-import { db, unwrap } from '../../_lib/db.js';
+import { db, rpc, unwrap } from '../../_lib/db.js';
 import { optionalEnv } from '../../_lib/env.js';
 import { sendEmail } from '../../_lib/email/send.js';
 import { applySecurityHeaders, fail, ok } from '../../_lib/http.js';
+import { ABANDONED_AFTER_MINUTES, reconcileOpenOrders } from '../../_lib/reconcile.js';
 
 /**
  * GET /api/cron/lifecycle  — invoked by Vercel Cron (see vercel.json)
@@ -10,6 +11,10 @@ import { applySecurityHeaders, fail, ok } from '../../_lib/http.js';
  * The time-based emails: abandoned-cart nudges and review requests. These are
  * the only two emails not triggered by a user action, so they need something to
  * drive them.
+ *
+ * Also settles orders stuck on "awaiting payment" by asking the provider what
+ * happened, since Paystack sends no webhook for a declined or abandoned payment
+ * (see api/_lib/reconcile.js).
  *
  * SCHEDULE: daily at 03:00 (`0 3 * * *`). It is daily rather than hourly because
  * Vercel's Hobby plan REJECTS any cron that would run more than once a day —
@@ -26,6 +31,7 @@ import { applySecurityHeaders, fail, ok } from '../../_lib/http.js';
 const ABANDONED_AFTER_HOURS = 4;
 const ABANDONED_GIVE_UP_HOURS = 72;
 const REVIEW_AFTER_DAYS = 7;
+const RELEASE_GIFT_CARD_HOLD_AFTER_HOURS = 24;
 
 function authorize(req) {
   const secret = optionalEnv('CRON_SECRET');
@@ -94,6 +100,8 @@ async function reviewRequests() {
       .from('orders')
       .select('*')
       .eq('status', 'delivered')
+      // A delivered gift card is an email, not a part. "Did it fit?" makes no sense.
+      .eq('kind', 'goods')
       .is('review_requested_at', null)
       .lte('delivered_at', cutoff)
       .limit(50),
@@ -113,6 +121,40 @@ async function reviewRequests() {
   }
 
   return { candidates: orders.length, sent };
+}
+
+/* -------------------------------------------------------------------------
+   Gift card holds on orders that were never paid.
+
+   Checkout holds gift card credit when the order is created. If the customer
+   then walks away from the payment page, that credit would stay locked forever.
+   After a day, hand it back. If they do somehow pay later, the payment confirm
+   re-takes the credit (or flags the order for a human if it has been spent).
+   ---------------------------------------------------------------------- */
+
+async function releaseStaleGiftCardHolds() {
+  const cutoff = new Date(Date.now() - RELEASE_GIFT_CARD_HOLD_AFTER_HOURS * 3600_000).toISOString();
+
+  const orders = unwrap(
+    await db()
+      .from('orders')
+      .select('id')
+      .not('gift_card_id', 'is', null)
+      .is('gift_card_released_at', null)
+      .is('paid_at', null)
+      .lte('created_at', cutoff)
+      .limit(100),
+    'cron:gift-holds',
+  );
+
+  let released = 0;
+
+  for (const order of orders) {
+    const result = await rpc('release_gift_card_hold', { p_order_id: order.id });
+    if (result === true) released += 1;
+  }
+
+  return { candidates: orders.length, released };
 }
 
 /* -------------------------------------------------------------------------
@@ -137,8 +179,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const [carts, reviews, pruned] = await Promise.all([abandonedCarts(), reviewRequests(), prune()]);
-    return ok(res, { carts, reviews, pruned });
+    // Payments first and on their own: settling an abandoned order releases its
+    // gift card hold, which the hold sweep below would otherwise do separately.
+    const payments = await reconcileOpenOrders({ olderThanMinutes: ABANDONED_AFTER_MINUTES, limit: 50 });
+
+    const [carts, reviews, giftCardHolds, pruned] = await Promise.all([
+      abandonedCarts(),
+      reviewRequests(),
+      releaseStaleGiftCardHolds(),
+      prune(),
+    ]);
+    return ok(res, {
+      payments: { checked: payments.checked, summary: payments.summary },
+      carts,
+      reviews,
+      giftCardHolds,
+      pruned,
+    });
   } catch (error) {
     console.error('[cron] lifecycle run failed', { message: error.message, stack: error.stack });
     return fail(res, 500, 'Cron run failed.');

@@ -5,6 +5,7 @@ import { addToCart, cartCount, clearCart, getCart, onCartChange, removeFromCart,
 import { esc, formatDate, money, statusBadge } from './lib/format.js';
 import { applySiteImages, hydrateStaticImages, imageTag, installImageFallback, isIllustrativeArt } from './lib/images.js';
 import { initHeader, paintAccountState, setStatus, showFieldErrors, updateCartBadge } from './lib/ui.js';
+import { initGiftCardsPage } from './gift-cards.js';
 import { mountChrome } from './partials.js';
 
 /* =========================================================================
@@ -648,9 +649,19 @@ async function initCheckoutPage() {
     return;
   }
 
-  try {
-    const quote = await post('/api/checkout/quote', { items: lines });
+  const submitButton = form.querySelector('[data-submit]');
+  const paymentSection = document.querySelector('[data-payment-section]');
+  const paymentNote = document.querySelector('[data-payment-note]');
+  const giftForm = document.querySelector('[data-gift-code-form]');
+  const giftEntry = giftForm.querySelector('[data-gift-code-entry]');
+  const giftApplied = giftForm.querySelector('[data-gift-code-applied]');
 
+  // The code the server last accepted. Sent with the order; the server re-checks
+  // it and holds the credit, so this is a convenience, not a promise.
+  let giftCode = '';
+  let dueCents = null;
+
+  function renderTotals(quote) {
     totalsMount.innerHTML = `
       <ul class="space-y-3">
         ${quote.items
@@ -667,11 +678,24 @@ async function initCheckoutPage() {
         <div class="flex justify-between"><dt class="text-moto-muted">Subtotal</dt><dd class="font-semibold text-moto-ink">${money(quote.subtotalCents)}</dd></div>
         <div class="flex justify-between"><dt class="text-moto-muted">Shipping</dt><dd class="font-semibold text-moto-ink">${quote.shippingCents === 0 ? 'Free' : money(quote.shippingCents)}</dd></div>
         ${quote.taxCents ? `<div class="flex justify-between"><dt class="text-moto-muted">Tax</dt><dd class="font-semibold text-moto-ink">${money(quote.taxCents)}</dd></div>` : ''}
+        ${
+          quote.giftCard
+            ? `<div class="flex justify-between border-t border-moto-line pt-2"><dt class="text-moto-muted">Order total</dt><dd class="font-semibold text-moto-ink">${money(quote.totalCents)}</dd></div>
+               <div class="flex justify-between text-moto-accent"><dt>Gift card <span class="font-display font-semibold">…${esc(quote.giftCard.last4)}</span></dt><dd class="font-semibold">−${money(quote.giftCard.appliedCents)}</dd></div>`
+            : ''
+        }
       </dl>
       <div class="mt-4 flex items-baseline justify-between border-t border-moto-line pt-4">
-        <span class="font-display font-bold text-moto-ink">Total</span>
-        <span class="font-display text-2xl font-bold text-moto-ink">${money(quote.totalCents)}</span>
+        <span class="font-display font-bold text-moto-ink">${quote.giftCard ? 'To pay' : 'Total'}</span>
+        <span class="font-display text-2xl font-bold text-moto-ink">${money(quote.dueCents)}</span>
       </div>
+      ${
+        quote.giftCard
+          ? `<p class="mt-2 text-right text-xs text-moto-outline">
+               ${quote.giftCard.balanceCents - quote.giftCard.appliedCents > 0 ? `${money(quote.giftCard.balanceCents - quote.giftCard.appliedCents)} stays on the card` : 'Uses the full card balance'}
+             </p>`
+          : ''
+      }
       ${
         quote.charge
           ? `<p class="mt-3 rounded-xl border border-moto-line bg-moto-high px-3 py-2 text-[11px] leading-relaxed text-moto-warm">
@@ -682,9 +706,24 @@ async function initCheckoutPage() {
           : ''
       }`;
 
-    // Only offer the methods the server says are actually configured.
-    const methods = document.querySelector('[data-payment-methods]');
-    methods.innerHTML = quote.paymentMethods.length
+    dueCents = quote.dueCents;
+
+    // Paid in full by gift card: no provider, so no method to pick.
+    const covered = quote.dueCents === 0;
+    paymentSection.classList.toggle('hidden', covered);
+    paymentNote.textContent = covered
+      ? 'Your gift card covers this order, so there is no card payment. The order is confirmed straight away.'
+      : 'You will be taken to our payment provider to complete the payment securely. Card details never touch our servers.';
+
+    giftEntry.classList.toggle('hidden', Boolean(quote.giftCard));
+    giftApplied.classList.toggle('hidden', !quote.giftCard);
+    giftApplied.classList.toggle('flex', Boolean(quote.giftCard));
+    if (quote.giftCard) giftForm.querySelector('[data-gift-code-last4]').textContent = `…${quote.giftCard.last4}`;
+
+    // Only offer the methods the server says are actually configured. Rendered
+    // once: re-quoting after a gift card change must not reset their choice.
+    if (!methods.childElementCount) {
+      methods.innerHTML = quote.paymentMethods.length
       ? quote.paymentMethods
           .map(
             (method, index) => `
@@ -698,11 +737,71 @@ async function initCheckoutPage() {
       : `<p class="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-semibold text-amber-300">
            No payment method is configured on this deployment yet.
          </p>`;
+    }
 
-    if (!quote.paymentMethods.length) form.querySelector('[data-submit]').disabled = true;
+    submitButton.disabled = !covered && !quote.paymentMethods.length;
+  }
+
+  /**
+   * Back to "no card applied", re-priced. `code` and `error` put a rejected code
+   * back in the box with the reason under it, so the customer can fix or remove it.
+   */
+  async function clearGiftCard({ code = '', error = null } = {}) {
+    giftCode = '';
+    giftForm.elements.giftCode.value = code;
+
+    try {
+      renderTotals(await post('/api/checkout/quote', { items: getCart() }));
+    } catch (quoteError) {
+      totalsMount.innerHTML = `<p class="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-300">${esc(quoteError.message)}</p>`;
+    }
+
+    showFieldErrors(giftForm, error ? { giftCode: error } : {});
+    giftForm.elements.giftCode.focus();
+  }
+
+  const methods = document.querySelector('[data-payment-methods]');
+
+  try {
+    renderTotals(await post('/api/checkout/quote', { items: lines }));
   } catch (error) {
     totalsMount.innerHTML = `<p class="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-300">${esc(error.message)}</p>`;
   }
+
+  /* ---- Gift card ---- */
+  giftForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    showFieldErrors(giftForm, {});
+
+    const code = giftForm.elements.giftCode.value.trim();
+    if (!code) {
+      showFieldErrors(giftForm, { giftCode: 'Enter the code from your gift card email.' });
+      giftForm.elements.giftCode.focus();
+      return;
+    }
+
+    const apply = giftForm.querySelector('[data-gift-code-apply]');
+    apply.disabled = true;
+    apply.textContent = 'Checking…';
+
+    try {
+      renderTotals(await post('/api/checkout/quote', { items: getCart(), giftCode: code }));
+      giftCode = code;
+      giftForm.querySelector('[data-gift-code-remove]').focus();
+    } catch (error) {
+      if (error.status === 401) {
+        redirectToSignIn('/checkout.html');
+        return;
+      }
+      showFieldErrors(giftForm, { giftCode: error.errors?.giftCode ?? error.message });
+      giftForm.elements.giftCode.focus();
+    } finally {
+      apply.disabled = false;
+      apply.textContent = 'Apply';
+    }
+  });
+
+  giftForm.querySelector('[data-gift-code-remove]').addEventListener('click', () => clearGiftCard());
 
   /* ---- Place the order ---- */
   form.addEventListener('submit', async (event) => {
@@ -710,7 +809,7 @@ async function initCheckoutPage() {
     setStatus(status, 'idle', '');
     showFieldErrors(form, {});
 
-    const submit = form.querySelector('[data-submit]');
+    const submit = submitButton;
     submit.disabled = true;
     submit.textContent = 'Placing order…';
 
@@ -728,12 +827,17 @@ async function initCheckoutPage() {
           postalCode: data.get('postalCode'),
           country: data.get('country'),
         },
-        paymentMethod: data.get('paymentMethod'),
+        paymentMethod: dueCents === 0 ? undefined : (data.get('paymentMethod') ?? undefined),
+        giftCode: giftCode || undefined,
       });
 
       clearCart();
 
-      setStatus(status, 'info', 'Redirecting you to complete payment…');
+      setStatus(
+        status,
+        'info',
+        result.paidWithGiftCard ? 'Paid with your gift card. Opening your order…' : 'Redirecting you to complete payment…',
+      );
       location.href = result.redirectUrl;
     } catch (error) {
       // The session lapsed between page load and submit.
@@ -749,6 +853,13 @@ async function initCheckoutPage() {
       }
       showFieldErrors(form, flat);
       setStatus(status, 'error', error.message);
+
+      // The card's balance moved, or the code stopped working, between applying
+      // it and placing the order. Nothing was charged. Re-price without it and
+      // show why next to the code.
+      if (error.errors?.giftCode) {
+        await clearGiftCard({ code: giftCode, error: error.message });
+      }
 
       submit.disabled = false;
       submit.textContent = 'Place order';
@@ -838,6 +949,15 @@ async function initOrderPage() {
     const { order } = await get(`/api/orders/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`);
 
     const paid = Boolean(order.paidAt);
+    const isGiftCard = order.kind === 'gift_card';
+
+    const heading = isGiftCard
+      ? paid
+        ? 'Gift card paid for.'
+        : 'Your gift card is not paid for yet'
+      : paid
+        ? 'Order confirmed.'
+        : 'Your order is not paid yet';
 
     // The design concept's confirmation checkmark badge — shown only once the
     // order is actually paid. A not-yet-paid order gets a plain heading; there
@@ -855,10 +975,10 @@ async function initOrderPage() {
         ${confirmBadge}
         <p class="eyebrow">Order ${esc(order.orderNumber)}</p>
         <h1 class="h-display text-3xl mt-2">
-          ${paid ? 'Order confirmed.' : 'Your order is not paid yet'}
+          ${esc(heading)}
         </h1>
         <p class="mt-2 text-sm text-moto-muted">Placed ${formatDate(order.createdAt)}</p>
-        <div class="mt-3 flex justify-center">${statusBadge(order.status)}</div>
+        ${isGiftCard ? '' : `<div class="mt-3 flex justify-center">${statusBadge(order.status)}</div>`}
       </div>
 
       <div class="card mt-8 p-6 sm:p-8 text-left">
@@ -879,9 +999,13 @@ async function initOrderPage() {
             <div class="flex justify-between gap-4 py-4">
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-moto-ink">${esc(item.title)}</p>
-                <p class="mt-0.5 text-xs text-moto-muted">
+                ${
+                  isGiftCard
+                    ? ''
+                    : `<p class="mt-0.5 text-xs text-moto-muted">
                   ${esc(item.brand ?? '')}${item.partNumber ? ` &bull; ${esc(item.partNumber)}` : ''} &bull; Qty ${item.quantity}
-                </p>
+                </p>`
+                }
               </div>
               <p class="shrink-0 text-sm font-semibold text-moto-ink">${money(item.lineTotalCents, order.currency)}</p>
             </div>`,
@@ -891,22 +1015,22 @@ async function initOrderPage() {
 
         <dl class="mt-5 space-y-2 text-sm">
           <div class="flex justify-between"><dt class="text-moto-muted">Subtotal</dt><dd class="font-semibold text-moto-ink">${money(order.subtotalCents, order.currency)}</dd></div>
-          <div class="flex justify-between"><dt class="text-moto-muted">Shipping</dt><dd class="font-semibold text-moto-ink">${order.shippingCents ? money(order.shippingCents, order.currency) : 'Free'}</dd></div>
+          ${isGiftCard ? '' : `<div class="flex justify-between"><dt class="text-moto-muted">Shipping</dt><dd class="font-semibold text-moto-ink">${order.shippingCents ? money(order.shippingCents, order.currency) : 'Free'}</dd></div>`}
           ${order.taxCents ? `<div class="flex justify-between"><dt class="text-moto-muted">Tax</dt><dd class="font-semibold text-moto-ink">${money(order.taxCents, order.currency)}</dd></div>` : ''}
           ${order.refundedCents ? `<div class="flex justify-between text-moto-accent"><dt>Refunded</dt><dd class="font-semibold">−${money(order.refundedCents, order.currency)}</dd></div>` : ''}
           <div class="flex justify-between border-t border-moto-line pt-3 text-base">
             <dt class="font-display font-bold text-moto-ink">Total</dt>
             <dd class="font-display font-bold text-moto-ink">${money(order.totalCents, order.currency)}</dd>
           </div>
+          ${
+            order.giftCardCents
+              ? `<div class="flex justify-between text-moto-muted"><dt>Paid by gift card</dt><dd class="font-semibold">−${money(order.giftCardCents, order.currency)}</dd></div>
+                 <div class="flex justify-between text-moto-muted"><dt>Paid by card</dt><dd class="font-semibold">${money(order.totalCents - order.giftCardCents, order.currency)}</dd></div>`
+              : ''
+          }
         </dl>
 
-        <div class="mt-6 rounded-2xl bg-moto-high p-4 text-sm leading-relaxed text-moto-warm">
-          <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-moto-ink">Shipping to</p>
-          ${[order.shipping.name, order.shipping.line1, order.shipping.line2, `${order.shipping.postalCode ?? ''} ${order.shipping.city ?? ''}`.trim(), order.shipping.country]
-            .filter(Boolean)
-            .map(esc)
-            .join('<br>')}
-        </div>
+        ${isGiftCard ? giftCardDeliveryPanel(order) : shippingPanel(order)}
       </div>
 
       ${paid ? `<div class="mt-8 flex flex-wrap justify-center gap-3">
@@ -920,6 +1044,48 @@ async function initOrderPage() {
   } catch (error) {
     mount.innerHTML = fallback('We could not load this order', error.message);
   }
+}
+
+const shippingPanel = (order) => `
+  <div class="mt-6 rounded-2xl bg-moto-high p-4 text-sm leading-relaxed text-moto-warm">
+    <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-moto-ink">Shipping to</p>
+    ${[order.shipping.name, order.shipping.line1, order.shipping.line2, `${order.shipping.postalCode ?? ''} ${order.shipping.city ?? ''}`.trim(), order.shipping.country]
+      .filter(Boolean)
+      .map(esc)
+      .join('<br>')}
+  </div>`;
+
+/**
+ * Where a gift card went, and whether it has. Says plainly when payment has not
+ * been confirmed yet, because the webhook can land a few seconds after the
+ * customer is sent back here.
+ */
+function giftCardDeliveryPanel(order) {
+  const card = order.giftCard;
+  if (!card) return '';
+
+  const to = card.recipientName ? `${esc(card.recipientName)} (${esc(card.recipientEmail)})` : esc(card.recipientEmail);
+
+  const state = {
+    pending: order.paidAt
+      ? 'Payment received. The code is being created.'
+      : 'Waiting for payment confirmation. If you have just paid, this page updates within a minute: refresh to check.',
+    active:
+      order.status === 'delivered'
+        ? `Code emailed to ${to}.`
+        : `Code created for ${to}. If it has not arrived, reply to your receipt email and we will send a new one.`,
+    disabled: 'This gift card was refunded, so its code no longer works.',
+  }[card.status];
+
+  return `
+    <div class="mt-6 rounded-2xl bg-moto-high p-4 text-sm leading-relaxed text-moto-warm">
+      <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-moto-ink">Gift card for</p>
+      <p>${to}</p>
+      <p class="mt-3 ${card.status === 'disabled' ? 'text-moto-error' : 'text-moto-accent'}">${state}</p>
+      <p class="mt-3 text-xs text-moto-outline">
+        For security the code is only sent to the recipient, never shown here or on your receipt.
+      </p>
+    </div>`;
 }
 
 const refundPanel = (order) => `
@@ -1007,6 +1173,7 @@ function boot() {
   initProductPage();
   initCartPage();
   initCheckoutPage();
+  initGiftCardsPage();
   initMyOrders();
   initOrderPage();
 }

@@ -37,7 +37,10 @@
  * @property {object} [clientData]   Anything the front-end SDK needs.
  *
  * @typedef {object} VerifyResult
- * @property {'succeeded'|'failed'|'pending'} status
+ * @property {'succeeded'|'failed'|'abandoned'|'pending'} status
+ *   'abandoned' = the customer never completed payment. Not final on its own: a
+ *   provider may report a transaction nobody has attempted yet this way, so the
+ *   caller decides when an abandoned payment has been left long enough to close.
  * @property {number}  amountCents
  * @property {string}  currency
  * @property {string} [method]

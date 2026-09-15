@@ -3,6 +3,7 @@ import { audit, requireAdmin, requireCsrf, requireRole } from '../../../_lib/aut
 import { db, rpc, unwrap } from '../../../_lib/db.js';
 import { sendEmail } from '../../../_lib/email/send.js';
 import { conflict, handler, ok, readJson } from '../../../_lib/http.js';
+import { adminCard, getCard, getPurchaseCard } from '../../../_lib/gift-cards.js';
 import { getOrder, parseOrThrow } from '../../../_lib/orders.js';
 
 /**
@@ -13,6 +14,11 @@ import { getOrder, parseOrThrow } from '../../../_lib/orders.js';
  * ship an unpaid order, deliver an unshipped one, or cancel a shipped one — the
  * admin UI hides those buttons, but the check lives here because the UI is not
  * a security boundary.
+ *
+ * Gift card purchases have nothing to ship: they are delivered by email the
+ * moment payment confirms, and resent with a reissue. So the shipping actions
+ * are refused for them, and a paid one cannot be cancelled either, because
+ * cancelling would leave a live card behind. Refunding is what voids a card.
  */
 
 const schema = z.object({
@@ -56,7 +62,27 @@ async function get(req, res) {
     'admin:order-emails',
   );
 
-  return ok(res, { order, items, payments, refunds, emails });
+  // The card this order bought, or the card that paid for it.
+  const card =
+    order.kind === 'gift_card'
+      ? await getPurchaseCard(order.id)
+      : order.gift_card_id
+        ? await getCard(order.gift_card_id)
+        : null;
+
+  const giftCardTransactions = card
+    ? unwrap(
+        await db()
+          .from('gift_card_transactions')
+          .select('kind, amount_cents, balance_after_cents, order_id, refund_id, created_at')
+          .eq('gift_card_id', card.id)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        'admin:order-gift-card-tx',
+      )
+    : [];
+
+  return ok(res, { order, items, payments, refunds, emails, giftCard: adminCard(card), giftCardTransactions });
 }
 
 async function patch(req, res) {
@@ -69,6 +95,15 @@ async function patch(req, res) {
   const input = parseOrThrow(schema, body);
 
   const { order, items } = await getOrder(String(id));
+
+  if (order.kind === 'gift_card') {
+    if (['mark_processing', 'mark_shipped', 'mark_delivered'].includes(input.action)) {
+      throw conflict('Gift cards are delivered by email when payment clears. To resend one, reissue the card.');
+    }
+    if (input.action === 'cancel' && order.paid_at) {
+      throw conflict('This gift card is paid for and live. Refund it instead: a refund voids its unspent balance.');
+    }
+  }
 
   const allowed = ALLOWED_FROM[input.action];
   if (allowed && !allowed.includes(order.status)) {
@@ -119,6 +154,12 @@ async function patch(req, res) {
   // parts stay invisibly reserved against an order that will never ship.
   if (input.action === 'cancel' && order.stock_committed) {
     await rpc('restock_order', { p_order_id: order.id });
+  }
+
+  // Cancelling an unpaid order hands back any gift card credit it was holding.
+  // (Does nothing for a paid order: that credit comes back through a refund.)
+  if (input.action === 'cancel') {
+    await rpc('release_gift_card_hold', { p_order_id: order.id });
   }
 
   await audit(req, admin, `order.${input.action}`, {

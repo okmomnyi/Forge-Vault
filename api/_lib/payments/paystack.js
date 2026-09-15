@@ -75,11 +75,15 @@ const paystack = {
   async verify(reference) {
     const data = await call(`/transaction/verify/${encodeURIComponent(reference)}`);
 
+    // Paystack reports a freshly initialised transaction that nobody has tried
+    // to pay yet as "abandoned", exactly like one the customer walked away from.
+    // It is kept distinct from "failed" (a real decline) so reconciliation can
+    // give a customer who is still on the payment page time to finish.
     const statusMap = {
       success: 'succeeded',
       failed: 'failed',
-      abandoned: 'failed',
       reversed: 'failed',
+      abandoned: 'abandoned',
     };
 
     return {

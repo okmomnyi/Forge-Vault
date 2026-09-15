@@ -128,7 +128,9 @@
               </div>
             </div>
 
-            <div>
+            <!-- Hidden when a gift card covers the whole order: there is nothing
+                 left for a provider to charge. -->
+            <div data-payment-section>
               <div class="h-display text-lg">Payment</div>
               <!-- Real card entry never happens on this site — the buyer is
                    redirected to the payment provider's own hosted page, so raw
@@ -136,10 +138,12 @@
                    concept here (it renders decorative, non-functional inputs).
                    The provider is offered as a selectable method instead. -->
               <div data-payment-methods class="mt-4 grid gap-3 sm:grid-cols-2"></div>
-              <div class="mt-4 flex items-center gap-2.5 rounded-2xl border border-moto-line bg-moto-panel px-4 py-3.5 text-xs leading-relaxed text-moto-muted">
-                <span class="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-moto-accent"></span>
-                You will be taken to our payment provider to complete the payment securely. Card details never touch our servers.
-              </div>
+              <p data-error-for="paymentMethod" class="field-error"></p>
+            </div>
+
+            <div class="flex items-center gap-2.5 rounded-2xl border border-moto-line bg-moto-panel px-4 py-3.5 text-xs leading-relaxed text-moto-muted">
+              <span class="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-moto-accent"></span>
+              <span data-payment-note>You will be taken to our payment provider to complete the payment securely. Card details never touch our servers.</span>
             </div>
 
             <button type="submit" data-submit class="btn-primary w-full py-4 text-base">Place order</button>
@@ -151,6 +155,30 @@
           <div class="card sticky top-24 p-6">
             <h2 id="summary-heading" class="h-display text-lg">Order summary</h2>
             <div data-checkout-totals class="mt-5"></div>
+
+            <!-- Gift card. A separate form: it only re-quotes, it never places
+                 the order, so pressing Enter here must not submit checkout. -->
+            <form data-gift-code-form novalidate class="mt-6 border-t border-moto-line pt-5">
+              <div data-gift-code-entry>
+                <label for="giftCode" class="field-label">Gift card</label>
+                <div class="flex gap-2">
+                  <input type="text" id="giftCode" name="giftCode" maxlength="40" autocomplete="off"
+                         autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"
+                         class="field-input min-w-0 uppercase tracking-wider" />
+                  <button type="submit" data-gift-code-apply class="btn-outline shrink-0 px-4">Apply</button>
+                </div>
+                <p data-error-for="giftCode" class="field-error"></p>
+              </div>
+
+              <div data-gift-code-applied class="hidden items-center justify-between gap-3 rounded-xl border border-moto-line bg-moto-lowest px-3.5 py-3">
+                <p class="min-w-0 text-sm text-moto-muted">
+                  Gift card <span data-gift-code-last4 class="font-display font-semibold text-moto-ink"></span> applied
+                </p>
+                <button type="button" data-gift-code-remove class="shrink-0 rounded-full text-xs font-semibold uppercase tracking-widest text-moto-outline hover:text-moto-error">
+                  Remove
+                </button>
+              </div>
+            </form>
           </div>
         </aside>
       </div>

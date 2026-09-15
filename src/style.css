@@ -170,7 +170,7 @@
   }
 
   .nav-link {
-    @apply font-sans text-[15px] text-moto-muted transition hover:text-moto-ink;
+    @apply whitespace-nowrap font-sans text-[15px] text-moto-muted transition hover:text-moto-ink;
   }
 
   /* ---- Image placeholders -------------------------------------------------

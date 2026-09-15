@@ -442,6 +442,132 @@ create index if not exists carts_reminder_idx on carts (created_at)
   where reminded_at is null and converted_at is null;
 
 -- ============================================================================
+-- Gift cards
+--
+-- A gift card is bought like any other order (orders.kind = 'gift_card', one
+-- order_items line with no product), so payment, webhooks, receipts and refunds
+-- all run through the paths that already exist. What is new:
+--
+--   * The CODE is a bearer credential worth money. Only its SHA-256 hash is
+--     stored, exactly like a session token: read access to the database does not
+--     let anyone spend a card. The plaintext exists once — in the delivery email.
+--     A lost email is fixed by reissuing (new code, same balance), not by
+--     looking the old code up.
+--   * The BALANCE only changes inside the SQL functions below, each of which
+--     locks the card row and writes a gift_card_transactions ledger row. The
+--     CHECKs are the backstop: a balance can never go negative or exceed what
+--     was paid for.
+--   * Redeeming HOLDS the credit when the order is created (so it cannot be
+--     spent twice while the customer is on the payment page) and releases it if
+--     the payment never completes.
+-- ============================================================================
+
+create table if not exists gift_cards (
+  id                    uuid primary key default gen_random_uuid(),
+
+  code_hash             text unique,          -- sha256 of the normalised code; null until paid
+  code_last4            text,                 -- shown in the admin and on receipts, never enough to spend
+
+  currency              text not null,
+  initial_cents         int  not null check (initial_cents > 0),
+  balance_cents         int  not null default 0 check (balance_cents >= 0),
+
+  -- pending  = bought, not paid yet (no code exists)
+  -- active   = spendable
+  -- disabled = its purchase was refunded, so the unspent balance was voided
+  status                text not null default 'pending' check (status in ('pending', 'active', 'disabled')),
+
+  purchase_order_id     uuid not null unique references orders(id) on delete restrict,
+  purchaser_customer_id uuid references customers(id) on delete set null,
+
+  recipient_email       citext not null,
+  recipient_name        text,
+  sender_name           text,
+  message               text,
+
+  activated_at          timestamptz,
+  disabled_at           timestamptz,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+alter table gift_cards drop constraint if exists gift_cards_balance_within_initial;
+alter table gift_cards add constraint gift_cards_balance_within_initial check (balance_cents <= initial_cents);
+
+-- An active card must have a code; a pending one must not have been handed out.
+alter table gift_cards drop constraint if exists gift_cards_code_when_active;
+alter table gift_cards add constraint gift_cards_code_when_active check (
+  (status = 'pending' and code_hash is null) or (status <> 'pending' and code_hash is not null)
+);
+
+create index if not exists gift_cards_recipient_idx on gift_cards (recipient_email);
+
+-- Append-only. Every balance change is a row here, signed: + credits the card,
+-- - debits it. "Where did my balance go?" has an answer.
+create table if not exists gift_card_transactions (
+  id                  uuid primary key default gen_random_uuid(),
+  gift_card_id        uuid not null references gift_cards(id) on delete restrict,
+  order_id            uuid references orders(id) on delete set null,
+  refund_id           uuid references refunds(id) on delete set null,
+  admin_id            uuid references admin_users(id) on delete set null,
+  kind                text not null check (kind in (
+                        'activate',              -- purchase paid, card funded
+                        'redeem',                -- credit held/spent against an order
+                        'release',               -- hold returned: that order was never paid
+                        'refund_restore',        -- parts returned, credit goes back on the card
+                        'refund_void',           -- the card's own purchase refunded, balance removed
+                        'refund_void_reversed',  -- that refund failed at the provider, balance put back
+                        'reissue'                -- new code issued, balance unchanged
+                      )),
+  amount_cents        int not null,
+  balance_after_cents int not null check (balance_after_cents >= 0),
+  created_at          timestamptz not null default now()
+);
+
+create index if not exists gift_card_tx_card_idx  on gift_card_transactions (gift_card_id, created_at);
+create index if not exists gift_card_tx_order_idx on gift_card_transactions (order_id);
+
+-- A refund_void is taken once per refund, whatever retries happen.
+create unique index if not exists gift_card_tx_void_once_idx
+  on gift_card_transactions (refund_id, kind)
+  where kind in ('refund_void', 'refund_void_reversed', 'refund_restore');
+
+-- What kind of order this is. Gift card orders have nothing to ship.
+alter table orders add column if not exists kind text not null default 'goods';
+alter table orders drop constraint if exists orders_kind_valid;
+alter table orders add constraint orders_kind_valid check (kind in ('goods', 'gift_card'));
+
+-- Gift card credit applied to a goods order. total_cents stays the full price of
+-- the parts; charge_amount_cents is what is left to pay after this credit.
+alter table orders add column if not exists gift_card_id             uuid references gift_cards(id) on delete restrict;
+alter table orders add column if not exists gift_card_cents          int not null default 0;
+alter table orders add column if not exists gift_card_refunded_cents int not null default 0;
+alter table orders add column if not exists gift_card_released_at    timestamptz;
+
+alter table orders drop constraint if exists orders_gift_card_amounts;
+alter table orders add constraint orders_gift_card_amounts check (
+  gift_card_cents >= 0
+  and gift_card_cents <= total_cents
+  and gift_card_refunded_cents >= 0
+  and gift_card_refunded_cents <= gift_card_cents
+);
+
+-- Gift cards cannot buy gift cards.
+alter table orders drop constraint if exists orders_gift_card_goods_only;
+alter table orders add constraint orders_gift_card_goods_only check (kind = 'goods' or gift_card_cents = 0);
+
+-- The share of a refund that goes back onto a gift card rather than the card
+-- that paid. The rest (amount_cents - gift_card_cents) goes to the provider.
+alter table refunds add column if not exists gift_card_cents int not null default 0;
+alter table refunds drop constraint if exists refunds_gift_card_within_amount;
+alter table refunds add constraint refunds_gift_card_within_amount check (
+  gift_card_cents >= 0 and gift_card_cents <= amount_cents
+);
+
+alter table gift_cards             enable row level security;
+alter table gift_card_transactions enable row level security;
+
+-- ============================================================================
 -- Atomic payment confirmation
 --
 -- Called by the payment webhook. Does four things in one transaction:
@@ -454,15 +580,30 @@ create index if not exists carts_reminder_idx on carts (created_at)
 --
 -- Returns the new order status. Raises on insufficient stock so the caller
 -- can refund the customer and alert the shop.
+--
+-- Gift cards (tables at the end of this file) ride in the same transaction:
+--   * An order paid partly or wholly by gift card must still hold that credit.
+--     If the hold was released while payment looked abandoned, it is re-taken
+--     here, and the confirm fails (GIFT_CARD_CONFLICT) if the balance has since
+--     been spent — the same "paid but cannot commit" path as a stock race.
+--   * A gift card PURCHASE activates its card here, with the code hash the
+--     caller generated. The card and the payment commit together or not at all.
 -- ============================================================================
 
+-- The signature grew two gift-card parameters. CREATE OR REPLACE cannot change a
+-- function's argument list: it would add an overload next to the old one, and
+-- PostgREST refuses to call an ambiguous function. Drop the old shape first.
+drop function if exists confirm_order_payment(uuid, text, text, int, text, jsonb);
+
 create or replace function confirm_order_payment(
-  p_order_id           uuid,
-  p_provider           text,
-  p_provider_reference text,
-  p_amount_cents       int,
-  p_method             text default null,
-  p_raw                jsonb default null
+  p_order_id            uuid,
+  p_provider            text,
+  p_provider_reference  text,
+  p_amount_cents        int,
+  p_method              text default null,
+  p_raw                 jsonb default null,
+  p_gift_card_code_hash text default null,
+  p_gift_card_last4     text default null
 )
 returns table (order_status_out order_status, already_processed boolean)
 language plpgsql
@@ -471,6 +612,7 @@ set search_path = public
 as $$
 declare
   v_order   orders%rowtype;
+  v_card    gift_cards%rowtype;
   v_item    record;
   v_stock   int;
 begin
@@ -494,6 +636,34 @@ begin
     raise exception 'AMOUNT_MISMATCH: expected %, got %', coalesce(v_order.charge_amount_cents, v_order.total_cents), p_amount_cents;
   end if;
 
+  -- Gift card credit applied at checkout. The charge above was reduced by it, so
+  -- the credit must actually be held or the shop is shipping parts unpaid for.
+  if v_order.gift_card_cents > 0 then
+    if v_order.gift_card_id is null then
+      raise exception 'GIFT_CARD_MISSING: order claims % of gift card credit but holds none', v_order.gift_card_cents;
+    end if;
+
+    if v_order.gift_card_released_at is not null then
+      -- The hold was released while the payment looked abandoned, and then the
+      -- customer paid after all. Take the credit again, if it is still there.
+      select * into v_card from gift_cards where id = v_order.gift_card_id for update;
+
+      if v_card.status <> 'active' or v_card.balance_cents < v_order.gift_card_cents then
+        raise exception 'GIFT_CARD_CONFLICT: card …% has %, order needs %',
+          v_card.code_last4, v_card.balance_cents, v_order.gift_card_cents;
+      end if;
+
+      update gift_cards
+         set balance_cents = balance_cents - v_order.gift_card_cents
+       where id = v_card.id;
+
+      insert into gift_card_transactions (gift_card_id, order_id, kind, amount_cents, balance_after_cents)
+      values (v_card.id, p_order_id, 'redeem', -v_order.gift_card_cents, v_card.balance_cents - v_order.gift_card_cents);
+
+      update orders set gift_card_released_at = null where id = p_order_id;
+    end if;
+  end if;
+
   -- Decrement stock, locking product rows in a deterministic order to avoid
   -- deadlocks between concurrent orders touching the same products.
   for v_item in
@@ -513,6 +683,30 @@ begin
            updated_at = now()
      where id = v_item.product_id;
   end loop;
+
+  -- A gift card purchase: the card goes live with the money.
+  if v_order.kind = 'gift_card' then
+    if p_gift_card_code_hash is null or p_gift_card_last4 is null then
+      raise exception 'GIFT_CARD_CODE_REQUIRED: order % is a gift card purchase', p_order_id;
+    end if;
+
+    update gift_cards
+       set status = 'active',
+           code_hash = p_gift_card_code_hash,
+           code_last4 = p_gift_card_last4,
+           balance_cents = initial_cents,
+           activated_at = now()
+     where purchase_order_id = p_order_id
+       and status = 'pending'
+    returning * into v_card;
+
+    if not found then
+      raise exception 'GIFT_CARD_MISSING: no pending card for order %', p_order_id;
+    end if;
+
+    insert into gift_card_transactions (gift_card_id, order_id, kind, amount_cents, balance_after_cents)
+    values (v_card.id, p_order_id, 'activate', v_card.initial_cents, v_card.initial_cents);
+  end if;
 
   update orders
      set status = 'paid',
@@ -537,6 +731,10 @@ $$;
 -- Increments the order's refunded total and moves it to refunded /
 -- partially_refunded. The CHECK constraint on orders.refunded_cents is the
 -- backstop that makes over-refunding impossible even if callers get it wrong.
+--
+-- The part of a refund that was originally paid by gift card (refunds.
+-- gift_card_cents) goes back onto that card here, in the same transaction, so
+-- the ledger and the order total cannot disagree.
 -- ============================================================================
 
 create or replace function record_refund_success(
@@ -551,6 +749,7 @@ as $$
 declare
   v_refund  refunds%rowtype;
   v_order   orders%rowtype;
+  v_card    gift_cards%rowtype;
   v_new_total int;
   v_status  order_status;
 begin
@@ -577,8 +776,35 @@ begin
                    then 'refunded'::order_status
                    else 'partially_refunded'::order_status end;
 
+  if v_refund.gift_card_cents > 0 then
+    if v_order.gift_card_id is null then
+      raise exception 'GIFT_CARD_MISSING: refund % returns gift card credit on an order that used none', p_refund_id;
+    end if;
+
+    if v_order.gift_card_refunded_cents + v_refund.gift_card_cents > v_order.gift_card_cents then
+      raise exception 'GIFT_CARD_REFUND_EXCEEDS_REDEEMED: redeemed %, already returned %, requested %',
+        v_order.gift_card_cents, v_order.gift_card_refunded_cents, v_refund.gift_card_cents;
+    end if;
+
+    select * into v_card from gift_cards where id = v_order.gift_card_id for update;
+
+    -- Credit goes back even if the card was voided by its own purchaser's
+    -- refund in the meantime: this is money the holder spent on parts that came
+    -- back, not part of the balance that was refunded to the buyer.
+    update gift_cards
+       set balance_cents = balance_cents + v_refund.gift_card_cents,
+           status = 'active',
+           disabled_at = null
+     where id = v_card.id;
+
+    insert into gift_card_transactions (gift_card_id, order_id, refund_id, kind, amount_cents, balance_after_cents)
+    values (v_card.id, v_order.id, p_refund_id, 'refund_restore', v_refund.gift_card_cents,
+            v_card.balance_cents + v_refund.gift_card_cents);
+  end if;
+
   update orders
      set refunded_cents = v_new_total,
+         gift_card_refunded_cents = gift_card_refunded_cents + v_refund.gift_card_cents,
          status = v_status,
          updated_at = now()
    where id = v_order.id;
@@ -621,6 +847,248 @@ begin
 end;
 $$;
 
+-- ============================================================================
+-- Gift card balance movements
+--
+-- Every function locks the ORDER before the CARD, matching confirm_order_payment
+-- and record_refund_success, so two of them can never deadlock on each other.
+-- ============================================================================
+
+-- Holds gift card credit against an unpaid goods order.
+--
+-- The amount is the order's own gift_card_cents, set when the order was priced;
+-- the caller does not get to name a number here. Returns the balance left.
+create or replace function hold_gift_card(p_order_id uuid, p_code_hash text)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order orders%rowtype;
+  v_card  gift_cards%rowtype;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+  if not found then
+    raise exception 'ORDER_NOT_FOUND: %', p_order_id;
+  end if;
+
+  if v_order.kind <> 'goods' then
+    raise exception 'GIFT_CARD_NOT_ALLOWED: gift cards cannot be spent on % orders', v_order.kind;
+  end if;
+
+  if v_order.paid_at is not null then
+    raise exception 'ORDER_ALREADY_PAID: %', p_order_id;
+  end if;
+
+  if v_order.gift_card_id is not null then
+    raise exception 'GIFT_CARD_ALREADY_APPLIED: %', p_order_id;
+  end if;
+
+  if v_order.gift_card_cents <= 0 then
+    raise exception 'GIFT_CARD_NOTHING_TO_HOLD: %', p_order_id;
+  end if;
+
+  select * into v_card from gift_cards where code_hash = p_code_hash for update;
+
+  if not found or v_card.status <> 'active' then
+    raise exception 'GIFT_CARD_INVALID';
+  end if;
+
+  if v_card.currency <> v_order.currency then
+    raise exception 'GIFT_CARD_CURRENCY: card is %, order is %', v_card.currency, v_order.currency;
+  end if;
+
+  if v_card.balance_cents < v_order.gift_card_cents then
+    raise exception 'GIFT_CARD_INSUFFICIENT: balance %, needed %', v_card.balance_cents, v_order.gift_card_cents;
+  end if;
+
+  update gift_cards
+     set balance_cents = balance_cents - v_order.gift_card_cents
+   where id = v_card.id;
+
+  insert into gift_card_transactions (gift_card_id, order_id, kind, amount_cents, balance_after_cents)
+  values (v_card.id, p_order_id, 'redeem', -v_order.gift_card_cents, v_card.balance_cents - v_order.gift_card_cents);
+
+  update orders set gift_card_id = v_card.id, updated_at = now() where id = p_order_id;
+
+  return v_card.balance_cents - v_order.gift_card_cents;
+end;
+$$;
+
+-- Returns a held credit to the card when its order was never paid.
+--
+-- Safe to call on any order, any number of times: it does nothing for an order
+-- that was paid, used no card, or was already released. Returns whether it
+-- actually released anything.
+create or replace function release_gift_card_hold(p_order_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order orders%rowtype;
+  v_card  gift_cards%rowtype;
+begin
+  select * into v_order from orders where id = p_order_id for update;
+
+  if not found
+     or v_order.gift_card_id is null
+     or v_order.gift_card_cents = 0
+     or v_order.gift_card_released_at is not null
+     or v_order.paid_at is not null then
+    return false;
+  end if;
+
+  select * into v_card from gift_cards where id = v_order.gift_card_id for update;
+
+  update gift_cards
+     set balance_cents = balance_cents + v_order.gift_card_cents
+   where id = v_card.id;
+
+  insert into gift_card_transactions (gift_card_id, order_id, kind, amount_cents, balance_after_cents)
+  values (v_card.id, p_order_id, 'release', v_order.gift_card_cents, v_card.balance_cents + v_order.gift_card_cents);
+
+  update orders set gift_card_released_at = now(), updated_at = now() where id = p_order_id;
+
+  return true;
+end;
+$$;
+
+-- Removes a gift card's unspent balance before its purchase is refunded.
+--
+-- Runs BEFORE the provider is asked to move money: otherwise the recipient could
+-- spend the card in the gap and the shop would pay out twice. Refuses if the
+-- balance has already been spent. Idempotent per refund. Returns the new balance.
+create or replace function void_gift_card_for_refund(p_refund_id uuid)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_refund refunds%rowtype;
+  v_order  orders%rowtype;
+  v_card   gift_cards%rowtype;
+begin
+  select * into v_refund from refunds where id = p_refund_id for update;
+  if not found then
+    raise exception 'REFUND_NOT_FOUND: %', p_refund_id;
+  end if;
+
+  select * into v_order from orders where id = v_refund.order_id for update;
+
+  if v_order.kind <> 'gift_card' then
+    raise exception 'GIFT_CARD_NOT_A_PURCHASE: order % is not a gift card purchase', v_order.id;
+  end if;
+
+  select * into v_card from gift_cards where purchase_order_id = v_order.id for update;
+
+  if exists (select 1 from gift_card_transactions where refund_id = p_refund_id and kind = 'refund_void') then
+    return v_card.balance_cents;
+  end if;
+
+  if v_card.status = 'pending' then
+    raise exception 'GIFT_CARD_NOT_ACTIVE: card for order % was never activated', v_order.id;
+  end if;
+
+  if v_card.balance_cents < v_refund.amount_cents then
+    raise exception 'GIFT_CARD_SPENT: only % of this card is unspent, refund asks for %',
+      v_card.balance_cents, v_refund.amount_cents;
+  end if;
+
+  update gift_cards
+     set balance_cents = balance_cents - v_refund.amount_cents,
+         status = case when balance_cents - v_refund.amount_cents = 0 then 'disabled' else status end,
+         disabled_at = case when balance_cents - v_refund.amount_cents = 0 then now() else disabled_at end
+   where id = v_card.id;
+
+  insert into gift_card_transactions (gift_card_id, order_id, refund_id, kind, amount_cents, balance_after_cents)
+  values (v_card.id, v_order.id, p_refund_id, 'refund_void', -v_refund.amount_cents,
+          v_card.balance_cents - v_refund.amount_cents);
+
+  return v_card.balance_cents - v_refund.amount_cents;
+end;
+$$;
+
+-- Puts a voided balance back when the provider rejected that refund. Does
+-- nothing if there is no void for this refund or it was already reversed.
+create or replace function reverse_gift_card_void(p_refund_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_void gift_card_transactions%rowtype;
+  v_card gift_cards%rowtype;
+begin
+  select * into v_void from gift_card_transactions
+   where refund_id = p_refund_id and kind = 'refund_void';
+
+  if not found then
+    return false;
+  end if;
+
+  if exists (select 1 from gift_card_transactions where refund_id = p_refund_id and kind = 'refund_void_reversed') then
+    return false;
+  end if;
+
+  select * into v_card from gift_cards where id = v_void.gift_card_id for update;
+
+  update gift_cards
+     set balance_cents = balance_cents - v_void.amount_cents,  -- amount is negative
+         status = 'active',
+         disabled_at = null
+   where id = v_card.id;
+
+  insert into gift_card_transactions (gift_card_id, order_id, refund_id, kind, amount_cents, balance_after_cents)
+  values (v_card.id, v_void.order_id, p_refund_id, 'refund_void_reversed', -v_void.amount_cents,
+          v_card.balance_cents - v_void.amount_cents);
+
+  return true;
+end;
+$$;
+
+-- Replaces a card's code, keeping its balance. The old code stops working in
+-- the same statement. Used when a delivery email bounced, went to a mistyped
+-- address, or the code was exposed.
+create or replace function reissue_gift_card(
+  p_card_id         uuid,
+  p_code_hash       text,
+  p_code_last4      text,
+  p_admin_id        uuid,
+  p_recipient_email text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_card gift_cards%rowtype;
+begin
+  select * into v_card from gift_cards where id = p_card_id for update;
+  if not found then
+    raise exception 'GIFT_CARD_NOT_FOUND: %', p_card_id;
+  end if;
+
+  if v_card.status <> 'active' then
+    raise exception 'GIFT_CARD_NOT_ACTIVE: card is %', v_card.status;
+  end if;
+
+  update gift_cards
+     set code_hash = p_code_hash,
+         code_last4 = p_code_last4,
+         recipient_email = coalesce(p_recipient_email, recipient_email)
+   where id = p_card_id;
+
+  insert into gift_card_transactions (gift_card_id, order_id, admin_id, kind, amount_cents, balance_after_cents)
+  values (p_card_id, v_card.purchase_order_id, p_admin_id, 'reissue', 0, v_card.balance_cents);
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- updated_at triggers
 -- ---------------------------------------------------------------------------
@@ -643,6 +1111,10 @@ create trigger orders_touch before update on orders
 
 drop trigger if exists payments_touch on payments;
 create trigger payments_touch before update on payments
+  for each row execute function touch_updated_at();
+
+drop trigger if exists gift_cards_touch on gift_cards;
+create trigger gift_cards_touch before update on gift_cards
   for each row execute function touch_updated_at();
 
 -- ---------------------------------------------------------------------------

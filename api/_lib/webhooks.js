@@ -1,7 +1,8 @@
 import { db, rpc, unwrap } from './db.js';
 import { sendAdminEmail, sendEmail } from './email/send.js';
+import { newCode } from './gift-cards.js';
 import { WebhookSignatureError } from './payments/index.js';
-import { getOrder } from './orders.js';
+import { OPEN_ORDER_STATUSES, getOrder, sendOrderPaidEmails } from './orders.js';
 
 /**
  * Shared webhook processing.
@@ -101,18 +102,38 @@ async function onPaymentSucceeded(provider, event) {
     return;
   }
 
+  await commitVerifiedPayment(provider, orderId, event.reference, confirmed);
+}
+
+/**
+ * Commits a payment the PROVIDER'S API has confirmed (never a payload or a
+ * redirect). Shared by the webhook and by reconciliation (api/_lib/reconcile.js),
+ * so a payment whose webhook never arrived is committed by exactly the same code.
+ *
+ * Safe to call twice: confirm_order_payment refuses to run again for an order it
+ * has already committed, and no second receipt is sent.
+ */
+export async function commitVerifiedPayment(provider, orderId, reference, confirmed) {
   const { order } = await getOrder(orderId, { withItems: false });
 
+  // A gift card purchase gets its code now, and the card activates in the same
+  // transaction as the payment. On a replay the function ignores this code, so
+  // a retried webhook cannot swap the code out from under the recipient.
+  const giftCode = order.kind === 'gift_card' ? newCode() : null;
+
   try {
-    // Atomic: decrements stock, marks paid, records the payment. Refuses to run
-    // twice for the same order. Raises if any line would go negative.
+    // Atomic: decrements stock, marks paid, records the payment, takes or
+    // activates gift card credit. Refuses to run twice for the same order.
+    // Raises if any line would go negative.
     const result = await rpc('confirm_order_payment', {
       p_order_id: orderId,
       p_provider: provider.id,
-      p_provider_reference: event.reference,
+      p_provider_reference: reference,
       p_amount_cents: confirmed.amountCents,
       p_method: confirmed.method ?? null,
       p_raw: confirmed.raw ?? null,
+      p_gift_card_code_hash: giftCode?.hash ?? null,
+      p_gift_card_last4: giftCode?.last4 ?? null,
     });
 
     const row = Array.isArray(result) ? result[0] : result;
@@ -125,10 +146,12 @@ async function onPaymentSucceeded(provider, event) {
   } catch (error) {
     const message = error.message ?? String(error);
 
-    if (message.includes('INSUFFICIENT_STOCK')) {
+    if (message.includes('INSUFFICIENT_STOCK') || message.includes('GIFT_CARD_CONFLICT')) {
       // The customer has been charged for something we cannot ship. This is
-      // the last-unit race. We do NOT silently swallow it and we do NOT
-      // auto-refund without a human — we take the money off the table and shout.
+      // the last-unit race — or its gift card twin, where the credit this order
+      // was relying on was released and spent elsewhere before the payment
+      // landed. We do NOT silently swallow it and we do NOT auto-refund without
+      // a human — we take the money off the table and shout.
       console.error('[webhook] PAID ORDER CANNOT BE FULFILLED', { orderId, message });
 
       unwrap(
@@ -148,7 +171,7 @@ async function onPaymentSucceeded(provider, event) {
           {
             order_id: orderId,
             provider: provider.id,
-            provider_reference: event.reference,
+            provider_reference: reference,
             status: 'succeeded',
             amount_cents: confirmed.amountCents,
             currency: confirmed.currency,
@@ -164,6 +187,14 @@ async function onPaymentSucceeded(provider, event) {
       return;
     }
 
+    if (message.includes('GIFT_CARD_MISSING') || message.includes('GIFT_CARD_CODE_REQUIRED')) {
+      // The order's gift card bookkeeping does not add up. That is a bug or
+      // tampering, never a customer mistake. Never ship on it.
+      console.error('[webhook] GIFT CARD STATE INVALID — refusing to fulfil', { orderId, message });
+      await sendAdminEmail('adminStockConflict', { order, error: message }, { orderId });
+      return;
+    }
+
     if (message.includes('AMOUNT_MISMATCH')) {
       // Someone paid an amount that is not the order total. Never ship on this.
       console.error('[webhook] AMOUNT MISMATCH — refusing to fulfil', { orderId, message });
@@ -174,40 +205,75 @@ async function onPaymentSucceeded(provider, event) {
     throw error;
   }
 
-  // Committed. Send the receipt and tell the shop.
-  const { order: paid, items } = await getOrder(orderId);
-
-  await sendEmail('orderConfirmation', paid.email, { order: paid, items }, { orderId });
-  await sendAdminEmail('adminNewOrder', { order: paid, items }, { orderId });
+  // Committed. Send the receipt (and the gift card code, if this bought one)
+  // and tell the shop.
+  await sendOrderPaidEmails(orderId, { giftCode });
 }
 
 async function onPaymentFailed(provider, event) {
   const orderId = await findOrderByReference(provider.id, event.reference, event.orderId);
   if (!orderId) return;
 
-  const { order } = await getOrder(orderId, { withItems: false });
+  const closed = await closeUnpaidOrder(provider, orderId, event.reference, {
+    outcome: 'failed',
+    reason: event.failureReason,
+  });
 
-  // A failure after we have already been paid is noise (e.g. a retried card
-  // attempt on an order that later succeeded). Never un-pay a paid order.
-  if (order.stock_committed || order.status === 'paid') return;
+  if (closed) {
+    const { order } = await getOrder(orderId, { withItems: false });
+    await sendEmail('paymentFailed', order.email, { order, reason: event.failureReason }, { orderId });
+  }
+}
 
-  unwrap(
-    await db().from('orders').update({ status: 'payment_failed' }).eq('id', orderId),
-    'webhook:order-failed',
+/**
+ * Closes an order whose payment the provider says did not happen.
+ *
+ *   failed    → order 'payment_failed' (a real decline)
+ *   abandoned → order 'cancelled' (the customer never finished paying)
+ *
+ * Only an order still waiting on payment is touched. A paid order is never
+ * un-paid, and an order someone already cancelled is left as they left it. The
+ * guard is in the UPDATE itself, so it holds even if a success webhook commits
+ * the order at the same instant.
+ *
+ * Closing is not a dead end: if the customer does pay later, the success
+ * webhook still commits the order, because confirm_order_payment does not look
+ * at the status. Any gift card credit is released now and re-taken then.
+ *
+ * Returns true when this call closed the order.
+ */
+export async function closeUnpaidOrder(provider, orderId, reference, { outcome, reason = null }) {
+  const now = new Date().toISOString();
+  const patch = outcome === 'abandoned' ? { status: 'cancelled', cancelled_at: now } : { status: 'payment_failed' };
+
+  const closed = unwrap(
+    await db()
+      .from('orders')
+      .update(patch)
+      .eq('id', orderId)
+      .is('paid_at', null)
+      .in('status', OPEN_ORDER_STATUSES)
+      .select('id'),
+    'payment:close-order',
   );
 
-  if (event.reference) {
+  if (!closed?.length) return false;
+
+  if (reference) {
     unwrap(
       await db()
         .from('payments')
-        .update({ status: 'failed', failure_reason: event.failureReason ?? null, raw: event.raw })
+        .update({ status: outcome === 'abandoned' ? 'abandoned' : 'failed', failure_reason: reason?.slice(0, 500) ?? null })
         .eq('provider', provider.id)
-        .eq('provider_reference', event.reference),
-      'webhook:payment-failed',
+        .eq('provider_reference', reference)
+        .eq('status', 'initiated'),
+      'payment:close-payment',
     );
   }
 
-  await sendEmail('paymentFailed', order.email, { order, reason: event.failureReason }, { orderId });
+  await rpc('release_gift_card_hold', { p_order_id: orderId });
+
+  return true;
 }
 
 async function onRefundSucceeded(provider, event) {
@@ -231,6 +297,8 @@ async function onRefundSucceeded(provider, event) {
   let refund = rows?.[0];
 
   if (!refund) {
+    const { order: refundedOrder } = await getOrder(orderId, { withItems: false });
+
     const created = unwrap(
       await db()
         .from('refunds')
@@ -244,6 +312,24 @@ async function onRefundSucceeded(provider, event) {
       'webhook:refund-adopt',
     );
     refund = created[0];
+
+    if (refundedOrder.kind === 'gift_card') {
+      // A gift card purchase refunded straight from the provider dashboard skips
+      // the admin panel, which is what voids the card BEFORE money moves. The card
+      // is still spendable. Not voided automatically: event.amountCents is in the
+      // provider's currency, so voiding it would take the wrong amount off the card.
+      console.error('[webhook] gift card purchase refunded outside the admin panel', { orderId });
+      await sendAdminEmail(
+        'adminStockConflict',
+        {
+          order: refundedOrder,
+          error:
+            'GIFT_CARD_REFUNDED_OUTSIDE_ADMIN: this gift card purchase was refunded directly in the payment provider dashboard. ' +
+            'The card was NOT voided and can still be spent. Refund gift cards from the admin panel only.',
+        },
+        { orderId },
+      );
+    }
   }
 
   await rpc('record_refund_success', {

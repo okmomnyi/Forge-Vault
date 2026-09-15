@@ -4,6 +4,7 @@ import { db, rpc, unwrap } from '../../../_lib/db.js';
 import { sendEmail } from '../../../_lib/email/send.js';
 import { badRequest, conflict, handler, notFound, ok, readJson } from '../../../_lib/http.js';
 import { toChargeAmount } from '../../../_lib/env.js';
+import { getPurchaseCard } from '../../../_lib/gift-cards.js';
 import { getOrder, parseOrThrow } from '../../../_lib/orders.js';
 import { getProvider } from '../../../_lib/payments/index.js';
 
@@ -23,6 +24,17 @@ import { getProvider } from '../../../_lib/payments/index.js';
  *     call then times out but actually succeeded, the webhook reconciles
  *     against that row instead of creating a second refund.
  *   - Refunding restocks the parts.
+ *
+ * GIFT CARDS change where the money goes, never how much:
+ *
+ *   - An order paid partly by gift card is refunded to the paying card FIRST, up
+ *     to what that card actually paid, and the remainder goes back onto the gift
+ *     card (refunds.gift_card_cents). Paystack would reject a refund larger than
+ *     its own transaction anyway; this makes the split explicit and exact.
+ *   - A gift card PURCHASE can only be refunded up to its unspent balance, and
+ *     that balance is voided BEFORE the provider is called. Otherwise the
+ *     recipient could spend it in the gap and the shop would pay out twice. If
+ *     the provider then rejects the refund, the void is reversed.
  */
 
 const schema = z.object({
@@ -46,10 +58,31 @@ async function create(req, res) {
     throw conflict('This order was never paid, so there is nothing to refund.');
   }
 
-  const refundable = order.total_cents - order.refunded_cents;
+  let refundable = order.total_cents - order.refunded_cents;
 
   if (refundable <= 0) {
     throw conflict('This order has already been fully refunded.');
+  }
+
+  const isGiftCardPurchase = order.kind === 'gift_card';
+
+  if (isGiftCardPurchase) {
+    // Only the part nobody has spent can go back. The spent part bought parts.
+    const card = await getPurchaseCard(order.id);
+    const unspent = card?.status === 'pending' ? 0 : (card?.balance_cents ?? 0);
+
+    if (unspent <= 0) {
+      throw conflict('This gift card has been fully spent, so there is nothing left to refund.');
+    }
+
+    if (input.amountCents !== undefined && input.amountCents > unspent) {
+      throw badRequest(
+        `Only ${(unspent / 100).toFixed(2)} ${order.currency} of this gift card is unspent, so that is the most you can refund.`,
+        { errors: { amountCents: 'Exceeds the unspent balance.' }, refundableCents: Math.min(unspent, refundable) },
+      );
+    }
+
+    refundable = Math.min(refundable, unspent);
   }
 
   const amountCents = input.amountCents ?? refundable;
@@ -61,27 +94,62 @@ async function create(req, res) {
     );
   }
 
-  // Find the payment that actually took the money.
-  const payments = unwrap(
-    await db()
-      .from('payments')
-      .select('*')
-      .eq('order_id', order.id)
-      .eq('status', 'succeeded')
-      .order('created_at', { ascending: false })
-      .limit(1),
-    'refund:payment',
-  );
+  // Split between the card that paid and the gift card that paid. Refunds still
+  // in flight count, or two quick refunds could both send the card portion.
+  let giftCardCents = 0;
 
-  const payment = payments?.[0];
-  if (!payment) throw notFound('No successful payment found for this order.');
-
-  const provider = getProvider(payment.provider);
-
-  if (!provider.supportsRefund) {
-    throw conflict(
-      `${provider.label} payments cannot be refunded automatically. This one has to be returned manually.`,
+  if (order.gift_card_cents > 0) {
+    const prior = unwrap(
+      await db()
+        .from('refunds')
+        .select('amount_cents, gift_card_cents')
+        .eq('order_id', order.id)
+        .in('status', ['processing', 'succeeded']),
+      'refund:prior',
     );
+
+    const cardPaid = order.total_cents - order.gift_card_cents;
+    const cardRefunded = prior.reduce((sum, r) => sum + r.amount_cents - r.gift_card_cents, 0);
+    const giftRefunded = prior.reduce((sum, r) => sum + r.gift_card_cents, 0);
+
+    const cardPortion = Math.min(amountCents, Math.max(0, cardPaid - cardRefunded));
+    giftCardCents = amountCents - cardPortion;
+
+    if (giftCardCents > order.gift_card_cents - giftRefunded) {
+      throw conflict('Another refund on this order is still processing. Wait for it to settle, then try again.');
+    }
+  }
+
+  const providerPortion = amountCents - giftCardCents;
+
+  // Find the payment that actually took the money. Not needed when the whole
+  // refund goes back onto a gift card.
+  let payment = null;
+  let provider = null;
+
+  if (providerPortion > 0) {
+    const payments = unwrap(
+      await db()
+        .from('payments')
+        .select('*')
+        .eq('order_id', order.id)
+        .eq('status', 'succeeded')
+        .neq('provider', 'gift_card')
+        .order('created_at', { ascending: false })
+        .limit(1),
+      'refund:payment',
+    );
+
+    payment = payments?.[0];
+    if (!payment) throw notFound('No successful payment found for this order.');
+
+    provider = getProvider(payment.provider);
+
+    if (!provider.supportsRefund) {
+      throw conflict(
+        `${provider.label} payments cannot be refunded automatically. This one has to be returned manually.`,
+      );
+    }
   }
 
   // Write the intent first, so a provider timeout cannot leave us with money
@@ -91,8 +159,9 @@ async function create(req, res) {
       .from('refunds')
       .insert({
         order_id: order.id,
-        payment_id: payment.id,
+        payment_id: payment?.id ?? null,
         amount_cents: amountCents,
+        gift_card_cents: giftCardCents,
         reason: input.reason || null,
         status: 'processing',
         processed_by_admin: admin.id,
@@ -103,37 +172,64 @@ async function create(req, res) {
 
   const refund = created[0];
 
+  if (isGiftCardPurchase) {
+    try {
+      await rpc('void_gift_card_for_refund', { p_refund_id: refund.id });
+    } catch (error) {
+      unwrap(
+        await db()
+          .from('refunds')
+          .update({ status: 'failed', failure_reason: error.message?.slice(0, 500) })
+          .eq('id', refund.id),
+        'refund:void-failed',
+      );
+
+      if (String(error.message).includes('GIFT_CARD_SPENT')) {
+        throw conflict('The gift card was spent while you were refunding it. Reload the order to see what is left.');
+      }
+      throw error;
+    }
+  }
+
   // The refund is accounted in the order's display currency (USD), but the
   // provider moves money in the charged currency (KES). Convert for the provider
   // call; the refunds ledger stays in USD. Prefer the payment's own currency —
   // that is exactly what was charged, so the refund matches to the cent.
-  const chargedInDisplayCurrency = (payment.currency ?? order.currency) === order.currency;
-  const providerAmountCents = chargedInDisplayCurrency ? amountCents : toChargeAmount(amountCents);
+  let result = { status: 'succeeded', reference: null };
 
-  let result;
-  try {
-    result = await provider.refund({
-      reference: payment.provider_reference,
-      amountCents: providerAmountCents,
-      currency: payment.currency ?? order.currency,
-      reason: input.reason,
-    });
-  } catch (error) {
-    unwrap(
-      await db()
-        .from('refunds')
-        .update({ status: 'failed', failure_reason: error.message?.slice(0, 500) })
-        .eq('id', refund.id),
-      'refund:failed',
-    );
+  if (providerPortion > 0) {
+    const chargedInDisplayCurrency = (payment.currency ?? order.currency) === order.currency;
+    const providerAmountCents = chargedInDisplayCurrency ? providerPortion : toChargeAmount(providerPortion);
 
-    await audit(req, admin, 'refund.failed', {
-      entity: 'refund',
-      entityId: refund.id,
-      after: { amountCents, error: error.message },
-    });
+    try {
+      result = await provider.refund({
+        reference: payment.provider_reference,
+        amountCents: providerAmountCents,
+        currency: payment.currency ?? order.currency,
+        reason: input.reason,
+      });
+    } catch (error) {
+      unwrap(
+        await db()
+          .from('refunds')
+          .update({ status: 'failed', failure_reason: error.message?.slice(0, 500) })
+          .eq('id', refund.id),
+        'refund:failed',
+      );
 
-    throw badRequest(`The payment provider rejected the refund: ${error.message}`);
+      // No money moved, so the gift card keeps its balance.
+      if (isGiftCardPurchase) {
+        await rpc('reverse_gift_card_void', { p_refund_id: refund.id });
+      }
+
+      await audit(req, admin, 'refund.failed', {
+        entity: 'refund',
+        entityId: refund.id,
+        after: { amountCents, error: error.message },
+      });
+
+      throw badRequest(`The payment provider rejected the refund: ${error.message}`);
+    }
   }
 
   // Some providers settle asynchronously and confirm by webhook. In that case
@@ -151,7 +247,7 @@ async function create(req, res) {
     await audit(req, admin, 'refund.pending', {
       entity: 'refund',
       entityId: refund.id,
-      after: { amountCents, provider: provider.id },
+      after: { amountCents, giftCardCents, provider: provider.id },
     });
 
     return ok(res, {

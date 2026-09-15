@@ -20,7 +20,11 @@
       <div class="flex flex-wrap items-end justify-between gap-4">
         <h1 class="text-2xl font-extrabold tracking-tight text-moto-ink">Orders</h1>
 
-        <div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button type="button" data-reconcile-all class="btn-outline"
+                  title="Ask the payment provider what happened to every order still awaiting payment">
+            Check pending payments
+          </button>
           <label for="status" class="sr-only">Filter by status</label>
           <select id="status" data-status-filter class="field-input w-56">
             <option value="all">All statuses</option>
@@ -38,6 +42,7 @@
         </div>
       </div>
 
+      <p data-reconcile-status role="status" aria-live="polite" class="sr-only"></p>
       <div data-order-detail class="mt-8 hidden"></div>
       <div data-orders class="mt-8"></div>
     </main>

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script src="/theme-init.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gift Cards — Forge Vault</title>
+    <meta
+      name="description"
+      content="Send a Forge Vault gift card by email. Credit for European car parts, from $10 to $500, spendable at checkout on anything in the shop. No expiry."
+    />
+    <meta property="og:title" content="Forge Vault gift cards" />
+    <meta property="og:description" content="Credit for European car parts, sent by email. From $10 to $500, no expiry." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#0e0f12" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="min-h-screen">
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-moto-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-moto-on-accent focus:shadow-lg">Skip to main content</a>
+
+    <header data-header="gift-cards" class="sticky top-0 z-50 bg-moto-panel border-b border-moto-line"></header>
+
+    <main id="main" class="container-page py-10 sm:py-14">
+      <p class="eyebrow">Gift cards</p>
+      <h1 class="h-display mt-2 text-4xl">
+        Send credit for parts
+      </h1>
+      <p class="mt-3 max-w-2xl text-base leading-relaxed text-moto-muted">
+        For someone who works on their own car. We email them a code once your payment clears, and it works at
+        checkout on anything in the shop. Whatever they do not spend stays on the card.
+      </p>
+
+      <div class="mt-10 grid gap-8 lg:grid-cols-[1fr_24rem]">
+        <!-- ==================== BUY ==================== -->
+        <section aria-labelledby="buy-heading">
+          <h2 id="buy-heading" class="sr-only">Buy a gift card</h2>
+
+          <!-- Signed out. Buying needs an account for the same reason checkout
+               does: the receipt and any refund are tied to an email the buyer has
+               proven they own. -->
+          <div data-gift-gate class="card hidden p-8 text-center">
+            <span class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-moto-accent/15 text-moto-accent">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6" aria-hidden="true">
+                <rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </span>
+            <h3 class="mt-5 h-display text-lg">Sign in to buy a gift card</h3>
+            <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-moto-muted">
+              Your receipt goes to your verified email, and that is where we contact you if the code needs resending.
+              Checking a balance below does not need an account.
+            </p>
+            <div class="mx-auto mt-7 max-w-xs space-y-3">
+              <a data-signin href="/account.html" class="btn-primary w-full">Sign in</a>
+              <a data-register href="/account.html?mode=register" class="btn-outline w-full">Create an account</a>
+            </div>
+          </div>
+
+          <div data-gift-loading class="card h-96 animate-pulse bg-moto-high/60" aria-hidden="true"></div>
+
+          <form data-gift-form novalidate class="card hidden p-6 sm:p-8">
+            <!-- Amount -->
+            <fieldset>
+              <legend class="h-display text-lg">1. Amount</legend>
+              <div data-amounts class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5" role="radiogroup" aria-label="Gift card amount"></div>
+
+              <div data-custom-amount class="mt-4 hidden max-w-xs">
+                <label for="customAmount" class="field-label">Amount in USD</label>
+                <div class="relative">
+                  <span class="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm text-moto-outline">$</span>
+                  <input type="number" id="customAmount" name="customAmount" inputmode="numeric" step="1"
+                         class="field-input pl-7" aria-describedby="customAmount-hint" />
+                </div>
+                <p id="customAmount-hint" data-amount-hint class="mt-1 text-xs text-moto-outline"></p>
+              </div>
+              <p data-error-for="amountCents" class="field-error"></p>
+            </fieldset>
+
+            <!-- Recipient -->
+            <fieldset class="mt-9">
+              <legend class="h-display text-lg">2. Who it is for</legend>
+
+              <div class="mt-4 grid gap-5 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <div class="flex items-baseline justify-between gap-3">
+                    <label for="recipientEmail" class="field-label">
+                      Their email <span class="text-moto-error" aria-hidden="true">*</span>
+                    </label>
+                    <button type="button" data-send-to-me class="mb-1.5 text-xs font-semibold text-moto-accent hover:text-moto-accent-soft">
+                      Send it to me
+                    </button>
+                  </div>
+                  <input type="email" id="recipientEmail" name="recipientEmail" required maxlength="255" autocomplete="off"
+                         class="field-input" aria-describedby="recipientEmail-hint" />
+                  <p id="recipientEmail-hint" class="mt-1 text-xs text-moto-outline">
+                    The code goes here. Double-check the spelling.
+                  </p>
+                  <p data-error-for="recipientEmail" class="field-error"></p>
+                </div>
+
+                <div>
+                  <label for="recipientName" class="field-label">Their name</label>
+                  <input type="text" id="recipientName" name="recipientName" maxlength="80" autocomplete="off"
+                         placeholder="Optional" class="field-input" />
+                  <p data-error-for="recipientName" class="field-error"></p>
+                </div>
+
+                <div>
+                  <label for="senderName" class="field-label">From</label>
+                  <input type="text" id="senderName" name="senderName" maxlength="80" autocomplete="name" class="field-input" />
+                  <p data-error-for="senderName" class="field-error"></p>
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label for="message" class="field-label">Message</label>
+                  <textarea id="message" name="message" rows="3" maxlength="300"
+                            placeholder="Optional. Printed in their email above the code."
+                            class="field-input resize-y" aria-describedby="message-count"></textarea>
+                  <p id="message-count" data-message-count class="field-counter" aria-live="polite">0 / 300</p>
+                  <p data-error-for="message" class="field-error"></p>
+                </div>
+              </div>
+            </fieldset>
+
+            <!-- Payment -->
+            <fieldset class="mt-9">
+              <legend class="h-display text-lg">3. Payment</legend>
+              <div data-payment-methods class="mt-4 grid gap-3 sm:grid-cols-2"></div>
+              <p data-error-for="paymentMethod" class="field-error"></p>
+              <p data-charge-note class="mt-3 hidden rounded-xl border border-moto-line bg-moto-high px-3 py-2 text-xs leading-relaxed text-moto-warm"></p>
+            </fieldset>
+
+            <button type="submit" data-submit class="btn-primary mt-9 w-full py-4 text-base">Pay for gift card</button>
+            <p data-gift-status role="status" aria-live="polite" class="sr-only"></p>
+
+            <p class="mt-4 text-center text-xs leading-relaxed text-moto-outline">
+              You pay on our payment provider's secure page. The code is created only after that payment is confirmed,
+              then emailed to the recipient. Your receipt does not include the code.
+            </p>
+          </form>
+        </section>
+
+        <!-- ==================== PREVIEW + HOW ==================== -->
+        <aside aria-labelledby="preview-heading" class="lg:row-span-2">
+          <div class="lg:sticky lg:top-24">
+            <h2 id="preview-heading" class="eyebrow">What they receive</h2>
+
+            <!-- A faithful stand-in for the email's card: amount, names, and a
+                 code slot. The real code is never shown on this page. -->
+            <div data-preview class="relative mt-3 aspect-[1.586] w-full max-w-full overflow-hidden rounded-[20px] border border-moto-line-2 bg-moto-panel p-5 shadow-panel sm:p-6">
+              <span class="absolute inset-y-0 left-0 w-1.5 bg-moto-accent" aria-hidden="true"></span>
+              <div class="flex h-full flex-col justify-between pl-2">
+                <div class="flex items-start justify-between gap-3">
+                  <span class="font-display text-sm font-bold leading-none tracking-tight text-moto-ink">
+                    <span class="text-moto-accent">Forge</span> Vault
+                  </span>
+                  <span class="text-[10px] font-semibold uppercase tracking-widest2 text-moto-outline">Gift card</span>
+                </div>
+
+                <p data-preview-amount class="font-display text-4xl font-bold tabular-nums text-moto-ink sm:text-5xl">$50</p>
+
+                <div class="space-y-1.5">
+                  <p class="truncate text-sm text-moto-muted">
+                    <span class="text-[10px] font-semibold uppercase tracking-widest text-moto-outline">For</span>
+                    <span data-preview-to class="ml-1.5">Someone with a project car</span>
+                  </p>
+                  <p class="truncate text-sm text-moto-muted">
+                    <span class="text-[10px] font-semibold uppercase tracking-widest text-moto-outline">From</span>
+                    <span data-preview-from class="ml-1.5">You</span>
+                  </p>
+                  <p class="pt-1 font-display text-xs tracking-wider text-moto-outline" aria-label="Code hidden until payment">
+                    ●●●●-●●●●-●●●●-●●●●
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <h2 class="mt-8 h-display text-lg">How it works</h2>
+            <ol class="mt-4 space-y-4">
+              <li class="flex gap-3">
+                <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-moto-accent/15 font-display text-xs font-bold text-moto-accent">01</span>
+                <p class="text-sm leading-relaxed text-moto-muted">You pay by card. Nothing is created until the payment is confirmed.</p>
+              </li>
+              <li class="flex gap-3">
+                <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-moto-accent/15 font-display text-xs font-bold text-moto-accent">02</span>
+                <p class="text-sm leading-relaxed text-moto-muted">They get an email with a 16-character code and your message.</p>
+              </li>
+              <li class="flex gap-3">
+                <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-moto-accent/15 font-display text-xs font-bold text-moto-accent">03</span>
+                <p class="text-sm leading-relaxed text-moto-muted">
+                  They enter it at checkout. If the parts cost more than the card, they pay the difference by card.
+                </p>
+              </li>
+            </ol>
+          </div>
+        </aside>
+
+        <!-- ==================== BALANCE ==================== -->
+        <section id="balance" aria-labelledby="balance-heading" class="scroll-mt-24">
+          <div class="card p-6 sm:p-8">
+            <h2 id="balance-heading" class="h-display text-lg">Check a balance</h2>
+            <p class="mt-2 text-sm text-moto-muted">Got a gift card? Enter the code from the email to see what is left on it.</p>
+
+            <form data-balance-form novalidate class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-start">
+              <div class="flex-1">
+                <label for="balanceCode" class="sr-only">Gift card code</label>
+                <input type="text" id="balanceCode" name="code" required maxlength="40" autocomplete="off"
+                       autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"
+                       class="field-input tracking-wider" />
+                <p data-error-for="code" class="field-error"></p>
+              </div>
+              <button type="submit" data-balance-submit class="btn-outline shrink-0">Check balance</button>
+            </form>
+
+            <div data-balance-result role="status" aria-live="polite" class="mt-5 hidden"></div>
+          </div>
+
+          <!-- ==================== TERMS ==================== -->
+          <div class="mt-8">
+            <h2 class="h-display text-lg">Gift card terms</h2>
+            <ul class="mt-4 space-y-3 text-sm leading-relaxed text-moto-muted">
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>Gift cards do not expire, and there are no fees.</span></li>
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>A card can be spent on parts only. It cannot be exchanged for cash, or used to buy another gift card.</span></li>
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>One gift card per order. Any balance left over stays on the card.</span></li>
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>If you return parts you paid for with a gift card, that amount goes back onto the card.</span></li>
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>If you bought a card and want your money back, we can refund whatever has not been spent yet. <a href="/contact.html" class="text-moto-accent hover:text-moto-accent-soft hover:underline">Contact us</a>.</span></li>
+              <li class="flex gap-3"><span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-moto-accent" aria-hidden="true"></span><span>Treat the code like cash: anyone who has it can spend it. If it is lost or went to the wrong address, we can issue a new code with the same balance, and the old one stops working.</span></li>
+            </ul>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer data-footer class="on-dark bg-black"></footer>
+
+    <script type="module" src="/src/shop.js"></script>
+  </body>
+</html>

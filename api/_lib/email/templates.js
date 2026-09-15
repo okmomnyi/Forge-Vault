@@ -203,7 +203,22 @@ export const refundIssued = ({ order, refund, isPartial }) => ({
       ${heading(isPartial ? 'Your partial refund is on its way' : 'Your refund is on its way')}
       ${paragraph(`We have refunded <strong>${formatMoney(refund.amount_cents, order.currency)}</strong> against order <strong>${escapeHtml(order.order_number)}</strong>.`)}
       ${refund.reason ? callout(`<strong>Reason:</strong> ${escapeHtml(refund.reason)}`, 'info') : ''}
-      ${paragraph('The money goes back to the original payment method. Card refunds typically take <strong>5&ndash;10 business days</strong> to appear, depending on your bank — that timing is on their side, not ours.')}
+      ${
+        refund.gift_card_cents > 0
+          ? paragraph(
+              `<strong>${formatMoney(refund.gift_card_cents, order.currency)}</strong> of this went back onto the gift card you paid with, and is ready to spend again now.` +
+                (refund.amount_cents > refund.gift_card_cents
+                  ? ` The other <strong>${formatMoney(refund.amount_cents - refund.gift_card_cents, order.currency)}</strong> goes back to your bank card.`
+                  : ''),
+            )
+          : ''
+      }
+      ${
+        order.kind === 'gift_card'
+          ? paragraph('The refunded amount has been removed from the gift card, so its code can no longer spend it.')
+          : ''
+      }
+      ${refund.amount_cents > (refund.gift_card_cents ?? 0) ? paragraph('The money goes back to the original payment method. Card refunds typically take <strong>5&ndash;10 business days</strong> to appear, depending on your bank — that timing is on their side, not ours.') : ''}
       ${
         isPartial
           ? paragraph(
@@ -315,11 +330,15 @@ export const adminStockConflict = ({ order, error }) => ({
     body: `
       ${heading('A paid order could not be committed')}
       ${callout(
-        `Order <strong>${escapeHtml(order.order_number)}</strong> was paid, but stock could not be reserved:<br><br>
+        `Order <strong>${escapeHtml(order.order_number)}</strong> was paid, but could not be committed:<br><br>
          <span style="font-family:monospace;">${escapeHtml(error)}</span>`,
         'danger',
       )}
-      ${paragraph("The customer's money has been taken. This almost always means two customers bought the last unit at the same time. Refund them or source the part — but do it now, before they chase you.")}
+      ${paragraph(
+        String(error).includes('GIFT_CARD')
+          ? "The customer's money has been taken, but the gift card credit this order relied on was not there when the payment landed. Refund them, or contact them to settle the difference. Do it now, before they chase you."
+          : "The customer's money has been taken. This almost always means two customers bought the last unit at the same time. Refund them or source the part — but do it now, before they chase you.",
+      )}
       ${button('Open in admin', adminOrderUrl(order))}
     `,
   }),

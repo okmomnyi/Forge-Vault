@@ -17,8 +17,8 @@ const wordmark = ({ text = 'text-moto-ink', size = 'text-lg' } = {}) => `
     FORGE <span class="font-medium text-moto-muted">VAULT</span>
   </span>`;
 
-const navLink = (href, label, current) =>
-  `<a href="${href}" class="nav-link${current ? ' text-moto-accent' : ''}"${current ? ' aria-current="page"' : ''}>${label}</a>`;
+const navLink = (href, label, current, extra = '') =>
+  `<a href="${href}" class="nav-link${current ? ' text-moto-accent' : ''}${extra ? ` ${extra}` : ''}"${current ? ' aria-current="page"' : ''}>${label}</a>`;
 
 const mobileLink = (href, label, current) =>
   `<a href="${href}" class="rounded-lg px-2 py-3 text-sm font-semibold ${current ? 'text-moto-accent' : 'text-moto-muted'} hover:bg-moto-low"${current ? ' aria-current="page"' : ''}>${label}</a>`;
@@ -55,8 +55,13 @@ export function header(page = '') {
         ${wordmark()}
       </a>
 
-      <nav class="hidden md:flex md:items-center md:gap-8" aria-label="Primary">
+      <nav class="hidden md:flex md:items-center md:gap-8 min-[1100px]:gap-6 xl:gap-8" aria-label="Primary">
         ${navLink('/products.html', 'Products', page === 'products')}
+        <!-- Only from 1100px: below that a signed-in header (Profile + Sign out,
+             plus the language picker from 1024px) has no room left, and the
+             link would push the row off screen. The footer, the account page and
+             the mobile menu link to gift cards at every width. -->
+        ${navLink('/gift-cards.html', 'Gift cards', page === 'gift-cards', 'hidden min-[1100px]:inline')}
         ${navLink('/about.html', 'About', page === 'about')}
         ${navLink('/contact.html', 'Contact', page === 'contact')}
       </nav>
@@ -116,6 +121,7 @@ export function header(page = '') {
   <div id="mobile-nav" data-menu-panel class="hidden border-t border-moto-line bg-moto-panel md:hidden">
     <nav class="container-page flex flex-col py-3" aria-label="Mobile">
       ${mobileLink('/products.html', 'Products', page === 'products')}
+      ${mobileLink('/gift-cards.html', 'Gift cards', page === 'gift-cards')}
       ${mobileLink('/about.html', 'About', page === 'about')}
       ${mobileLink('/contact.html', 'Contact', page === 'contact')}
 
@@ -160,6 +166,8 @@ export function footer() {
 
       ${footerColumn('Browse', [
         ['/products.html', 'All Products'],
+        ['/gift-cards.html', 'Gift Cards'],
+        ['/gift-cards.html#balance', 'Check a Gift Card Balance'],
         ['#', 'HTML Sitemap'],
       ])}
 

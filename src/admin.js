@@ -299,7 +299,10 @@ async function initOrders() {
 
   const orderRow = (order) => `
     <tr class="hover:bg-moto-low">
-      <td class="px-4 py-3 font-mono font-semibold text-moto-ink">${esc(order.order_number)}</td>
+      <td class="px-4 py-3 font-mono font-semibold text-moto-ink">
+        ${esc(order.order_number)}
+        ${order.kind === 'gift_card' ? '<span class="ml-2 rounded-full border border-moto-line-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-moto-accent-soft">Gift card</span>' : ''}
+      </td>
       <td class="px-4 py-3 text-moto-muted">${esc(order.email)}</td>
       <td class="px-4 py-3">${statusBadge(order.status)}</td>
       <td class="px-4 py-3 text-right font-bold tabular-nums text-moto-ink">
@@ -314,6 +317,29 @@ async function initOrders() {
 
   filter?.addEventListener('change', load);
 
+  // Paystack sends no webhook for a declined or abandoned payment, so those
+  // orders only leave "Awaiting payment" when someone asks it. The daily cron
+  // does this too; this is the same check, on demand.
+  const reconcileAll = document.querySelector('[data-reconcile-all]');
+  const reconcileStatus = document.querySelector('[data-reconcile-status]');
+
+  reconcileAll?.addEventListener('click', async () => {
+    reconcileAll.disabled = true;
+    reconcileAll.textContent = 'Checking with Paystack…';
+    setStatus(reconcileStatus, 'idle', '');
+
+    try {
+      const result = await post('/api/admin/orders/reconcile', {});
+      setStatus(reconcileStatus, 'success', result.message);
+      await load();
+    } catch (error) {
+      setStatus(reconcileStatus, 'error', error.message);
+    } finally {
+      reconcileAll.disabled = false;
+      reconcileAll.textContent = 'Check pending payments';
+    }
+  });
+
   mount.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-open]');
     if (button) await openOrder(button.dataset.open);
@@ -324,20 +350,35 @@ async function initOrders() {
     detail.classList.remove('hidden');
     detail.innerHTML = '<div class="card h-64 animate-pulse bg-moto-high/60"></div>';
 
-    const { order, items, payments, refunds, emails } = await get(`/api/admin/orders/${id}`);
+    const { order, items, payments, refunds, emails, giftCard, giftCardTransactions } = await get(
+      `/api/admin/orders/${id}`,
+    );
+
+    const isGiftCard = order.kind === 'gift_card';
+    const isManager = ['owner', 'manager'].includes(currentAdmin.role);
 
     // The state machine, mirrored from the server. The server is the authority;
-    // this only decides which buttons are worth showing.
+    // this only decides which buttons are worth showing. Gift cards have nothing
+    // to ship, and a paid one is refunded rather than cancelled.
     const actions = [];
-    if (order.status === 'paid') actions.push(['mark_processing', 'Mark processing', 'btn-outline']);
-    if (['paid', 'processing'].includes(order.status)) actions.push(['mark_shipped', 'Mark shipped', 'btn-primary']);
-    if (order.status === 'shipped') actions.push(['mark_delivered', 'Mark delivered', 'btn-primary']);
-    if (['awaiting_verification', 'pending_payment', 'payment_failed', 'paid', 'processing'].includes(order.status)) {
+    if (!isGiftCard) {
+      if (order.status === 'paid') actions.push(['mark_processing', 'Mark processing', 'btn-outline']);
+      if (['paid', 'processing'].includes(order.status)) actions.push(['mark_shipped', 'Mark shipped', 'btn-primary']);
+      if (order.status === 'shipped') actions.push(['mark_delivered', 'Mark delivered', 'btn-primary']);
+    }
+    if (
+      ['awaiting_verification', 'pending_payment', 'payment_failed', 'paid', 'processing'].includes(order.status) &&
+      !(isGiftCard && order.paid_at)
+    ) {
       actions.push(['cancel', 'Cancel order', 'btn-outline']);
     }
 
-    const refundable = order.total_cents - order.refunded_cents;
-    const canRefund = order.paid_at && refundable > 0 && ['owner', 'manager'].includes(currentAdmin.role);
+    // A gift card purchase can only give back what has not been spent.
+    const unspent = isGiftCard && giftCard?.status === 'active' ? giftCard.balance_cents : isGiftCard ? 0 : null;
+    const refundable =
+      unspent === null ? order.total_cents - order.refunded_cents : Math.min(order.total_cents - order.refunded_cents, unspent);
+    const canRefund = order.paid_at && refundable > 0 && isManager;
+    const canReissue = isGiftCard && giftCard?.status === 'active' && isManager;
 
     detail.innerHTML = `
       <div class="card p-6">
@@ -376,21 +417,51 @@ async function initOrders() {
               <span>Total</span><span>${money(order.total_cents, order.currency)}</span>
             </div>
             ${order.refunded_cents ? `<p class="mt-1 text-right text-sm font-semibold text-moto-accent-soft">Refunded ${money(order.refunded_cents, order.currency)}</p>` : ''}
+            ${
+              order.gift_card_cents
+                ? `<p class="mt-1 text-right text-sm text-moto-muted">
+                     Gift card <span class="font-semibold">…${esc(giftCard?.code_last4 ?? '????')}</span> paid ${money(order.gift_card_cents, order.currency)}
+                     &bull; card paid ${money(order.total_cents - order.gift_card_cents, order.currency)}
+                   </p>
+                   ${order.gift_card_released_at && !order.paid_at ? '<p class="mt-1 text-right text-xs text-moto-outline">Gift card hold released (order never paid)</p>' : ''}
+                   ${order.gift_card_refunded_cents ? `<p class="mt-1 text-right text-xs text-moto-accent-soft">${money(order.gift_card_refunded_cents, order.currency)} returned to the gift card</p>` : ''}`
+                : ''
+            }
           </div>
 
           <div>
-            <h3 class="text-xs font-bold uppercase tracking-wide text-moto-outline">Shipping</h3>
+            ${
+              isGiftCard
+                ? giftCardPanel(order, giftCard)
+                : `<h3 class="text-xs font-bold uppercase tracking-wide text-moto-outline">Shipping</h3>
             <address class="mt-3 text-sm not-italic leading-relaxed text-moto-muted">
               ${[order.ship_name, order.ship_line1, order.ship_line2, `${order.ship_postal_code ?? ''} ${order.ship_city ?? ''}`.trim(), order.ship_country]
                 .filter(Boolean)
                 .map(esc)
                 .join('<br>')}
-            </address>
+            </address>`
+            }
 
             <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-moto-outline">Payments</h3>
             <ul class="mt-2 space-y-1 text-sm text-moto-muted">
-              ${payments.map((p) => `<li>${esc(p.provider)} — ${esc(p.status)} — ${money(p.amount_cents, order.currency)}</li>`).join('') || '<li class="text-moto-outline">None</li>'}
+              ${payments.map((p) => `<li>${esc(p.provider)} — ${esc(p.status)} — ${money(p.amount_cents, p.currency ?? order.currency)}${p.failure_reason ? `<span class="block text-xs text-moto-outline">${esc(p.failure_reason)}</span>` : ''}</li>`).join('') || '<li class="text-moto-outline">None</li>'}
             </ul>
+
+            ${
+              giftCardTransactions?.length
+                ? `<h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-moto-outline">Gift card ledger <span class="normal-case">…${esc(giftCard?.code_last4 ?? '')}</span></h3>
+                   <ul class="mt-2 space-y-1 text-xs text-moto-muted">
+                     ${giftCardTransactions
+                       .map(
+                         (t) => `<li class="flex justify-between gap-3">
+                           <span>${esc(t.kind.replaceAll('_', ' '))} <span class="text-moto-outline">${formatDate(t.created_at)}</span>${t.order_id && t.order_id !== order.id ? ` <a href="/admin/orders.html?order=${esc(t.order_id)}" class="text-moto-accent hover:underline">order</a>` : ''}</span>
+                           <span class="tabular-nums">${t.amount_cents > 0 ? '+' : ''}${money(t.amount_cents, order.currency)} → ${money(t.balance_after_cents, order.currency)}</span>
+                         </li>`,
+                       )
+                       .join('')}
+                   </ul>`
+                : ''
+            }
 
             <h3 class="mt-5 text-xs font-bold uppercase tracking-wide text-moto-outline">Emails sent</h3>
             <ul class="mt-2 space-y-1 text-xs text-moto-outline">
@@ -407,7 +478,7 @@ async function initOrders() {
         </div>
 
         ${
-          ['paid', 'processing'].includes(order.status)
+          ['paid', 'processing'].includes(order.status) && !isGiftCard
             ? `<div class="mt-6 grid gap-3 sm:grid-cols-3">
                  <input type="text" data-tracking placeholder="Tracking number" class="field-input" maxlength="120" />
                  <input type="text" data-carrier placeholder="Carrier (e.g. DHL)" class="field-input" maxlength="80" />
@@ -418,6 +489,8 @@ async function initOrders() {
 
         <div class="mt-6 flex flex-wrap gap-3">
           ${actions.map(([action, label, cls]) => `<button type="button" data-action="${action}" class="${cls}">${label}</button>`).join('')}
+          ${['awaiting_verification', 'pending_payment'].includes(order.status) ? '<button type="button" data-reconcile class="btn-outline">Check payment status</button>' : ''}
+          ${canReissue ? '<button type="button" data-reissue class="btn-outline">Reissue code</button>' : ''}
           ${canRefund ? `<button type="button" data-refund class="btn border border-red-300 bg-moto-panel text-moto-error hover:bg-moto-high">Refund (up to ${money(refundable, order.currency)})</button>` : ''}
         </div>
 
@@ -455,6 +528,52 @@ async function initOrders() {
       });
     });
 
+    detail.querySelector('[data-reconcile]')?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = 'Checking…';
+
+      try {
+        const result = await post('/api/admin/orders/reconcile', { orderId: id });
+        await openOrder(id);
+        setStatus(detail.querySelector('[data-action-status]'), 'success', result.message);
+        load();
+      } catch (error) {
+        setStatus(actionStatus, 'error', error.message);
+        button.disabled = false;
+        button.textContent = 'Check payment status';
+      }
+    });
+
+    detail.querySelector('[data-reissue]')?.addEventListener('click', async () => {
+      const email = prompt(
+        `Send a new code to which address? The old code stops working immediately.\n\nKeep it as-is to resend to the same person.`,
+        giftCard.recipient_email,
+      );
+      if (email === null) return;
+
+      const trimmed = email.trim();
+      const changed = Boolean(trimmed) && trimmed.toLowerCase() !== giftCard.recipient_email.toLowerCase();
+
+      if (
+        changed &&
+        !confirm(`Send this gift card (balance ${money(giftCard.balance_cents, order.currency)}) to ${trimmed} instead of ${giftCard.recipient_email}?`)
+      ) {
+        return;
+      }
+
+      try {
+        const result = await post(`/api/admin/gift-cards/${giftCard.id}/reissue`, {
+          recipientEmail: changed ? trimmed : undefined,
+        });
+        await openOrder(id);
+        setStatus(detail.querySelector('[data-action-status]'), result.emailSent ? 'success' : 'error', result.message);
+        load();
+      } catch (error) {
+        setStatus(actionStatus, 'error', error.message);
+      }
+    });
+
     detail.querySelector('[data-refund]')?.addEventListener('click', async () => {
       const input = prompt(
         `Refund how much? Enter an amount in ${order.currency}, or leave blank for the full refundable balance of ${(refundable / 100).toFixed(2)}.`,
@@ -488,6 +607,32 @@ async function initOrders() {
 
   const focusOrder = params.get('order');
   if (focusOrder) await openOrder(focusOrder);
+}
+
+/** The gift card an order bought: who it went to, what is left, its state. Never the code. */
+function giftCardPanel(order, card) {
+  if (!card) {
+    return '<p class="text-sm font-semibold text-moto-error">No gift card record found for this order.</p>';
+  }
+
+  const tone = { pending: 'text-moto-outline', active: 'text-moto-accent-soft', disabled: 'text-moto-error' }[card.status];
+  const undelivered = card.status === 'active' && order.status === 'paid';
+
+  return `
+    <h3 class="text-xs font-bold uppercase tracking-wide text-moto-outline">Gift card</h3>
+    <dl class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+      <dt class="text-moto-outline">Status</dt>
+      <dd class="font-semibold ${tone}">${esc(card.status)}${undelivered ? ' <span class="font-normal text-moto-error">(delivery email not sent: reissue)</span>' : ''}</dd>
+      <dt class="text-moto-outline">Balance</dt>
+      <dd class="font-display font-semibold tabular-nums text-moto-ink">${money(card.balance_cents, card.currency)} <span class="text-moto-outline">of ${money(card.initial_cents, card.currency)}</span></dd>
+      <dt class="text-moto-outline">Code</dt>
+      <dd class="font-display text-moto-muted">${card.code_last4 ? `…${esc(card.code_last4)}` : 'Not issued (unpaid)'}</dd>
+      <dt class="text-moto-outline">To</dt>
+      <dd class="break-all text-moto-muted">${esc(card.recipient_name ? `${card.recipient_name} <${card.recipient_email}>` : card.recipient_email)}</dd>
+      <dt class="text-moto-outline">From</dt>
+      <dd class="text-moto-muted">${esc(card.sender_name ?? '')}</dd>
+    </dl>
+    ${card.message ? `<p class="mt-3 whitespace-pre-line border-l-2 border-moto-line-2 pl-3 text-sm italic text-moto-muted">${esc(card.message)}</p>` : ''}`;
 }
 
 /* =========================================================================

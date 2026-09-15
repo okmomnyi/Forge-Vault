@@ -1,9 +1,17 @@
 import { z } from 'zod';
 import { requireCsrf, requireCustomer } from '../../_lib/customer-auth.js';
-import { db, unwrap } from '../../_lib/db.js';
+import { rpc } from '../../_lib/db.js';
 import { siteUrl } from '../../_lib/env.js';
+import { applyGiftCard, findSpendableCard } from '../../_lib/gift-cards.js';
 import { badRequest, clientIp, conflict, handler, ok, rateLimit, readJson } from '../../_lib/http.js';
-import { createOrder, parseOrThrow } from '../../_lib/orders.js';
+import {
+  abandonOrder,
+  createOrder,
+  parseOrThrow,
+  priceCart,
+  sendOrderPaidEmails,
+  startPayment,
+} from '../../_lib/orders.js';
 import { getProvider } from '../../_lib/payments/index.js';
 
 /**
@@ -20,6 +28,11 @@ import { getProvider } from '../../_lib/payments/index.js';
  *
  * Email ownership was proven once at signup (/api/auth/verify), so there is no
  * per-checkout OTP. That is the whole reason accounts are mandatory.
+ *
+ * GIFT CARDS: an optional code. Its credit is held against the order as it is
+ * created (see hold_gift_card). When the credit covers the whole total there is
+ * nothing for a provider to charge, so the order is confirmed right here through
+ * the same atomic confirm_order_payment the webhook uses, with a zero amount.
  */
 
 const schema = z.object({
@@ -35,7 +48,10 @@ const schema = z.object({
     postalCode: z.string().trim().min(1, 'Enter your postal code.').max(32),
     country: z.string().trim().min(2, 'Select your country.').max(80),
   }),
-  paymentMethod: z.enum(['paystack', 'crypto']),
+  giftCode: z.string().trim().max(40).optional().or(z.literal('')),
+  // Optional only because a gift card can cover the whole order. Required
+  // below whenever anything is left to pay.
+  paymentMethod: z.enum(['paystack', 'crypto']).optional(),
 });
 
 async function create(req, res) {
@@ -48,7 +64,24 @@ async function create(req, res) {
   await rateLimit(`checkout:customer:${customer.id}`, { limit: 10, windowSecs: 900 });
   await rateLimit(`checkout:ip:${clientIp(req)}`, { limit: 30, windowSecs: 900 });
 
-  const provider = getProvider(input.paymentMethod);
+  let giftCard = null;
+  if (input.giftCode) {
+    await rateLimit(`gift-code:customer:${customer.id}`, { limit: 20, windowSecs: 900 });
+    giftCard = await findSpendableCard(input.giftCode);
+  }
+
+  // Price once, before anything is written, so we know whether a provider is
+  // needed and can reject a missing payment method without leaving an order.
+  const priced = await priceCart(input.items);
+  const { dueCents } = applyGiftCard(priced.totalCents, giftCard?.card);
+
+  let provider = null;
+  if (dueCents > 0) {
+    if (!input.paymentMethod) {
+      throw badRequest('Choose a payment method.', { errors: { paymentMethod: 'Choose how to pay the rest.' } });
+    }
+    provider = getProvider(input.paymentMethod);
+  }
 
   // Identity comes from the session. Nothing here is caller-supplied.
   const { order, items } = await createOrder({
@@ -57,64 +90,55 @@ async function create(req, res) {
     name: customer.name,
     phone: input.phone,
     items: input.items,
+    priced,
     shipping: input.shipping,
+    giftCard,
   });
 
-  let init;
-  try {
-    init = await provider.initialize({
-      order,
-      email: order.email,
-      // Charge in the provider's currency (KES), not the display currency (USD).
-      // These equal the order total when no conversion is configured.
-      amountCents: order.charge_amount_cents ?? order.total_cents,
-      currency: order.charge_currency ?? order.currency,
-      callbackUrl: `${siteUrl()}/order.html?id=${order.id}&token=${order.access_token}`,
-    });
-  } catch (error) {
-    console.error('[checkout] provider init failed', {
-      provider: input.paymentMethod,
-      message: error.message,
-    });
-
-    // The order exists but can never be paid for. Cancel it so it does not sit
-    // in the admin panel forever looking like a lost sale.
-    unwrap(
-      await db().from('orders').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', order.id),
-      'checkout:abandon',
-    );
-
-    throw badRequest('We could not start the payment. Please try again, or choose another method.');
-  }
-
-  // Record the attempt so the webhook can find this order by its reference.
-  unwrap(
-    await db().from('payments').insert({
-      order_id: order.id,
-      provider: provider.id,
-      provider_reference: init.reference,
-      status: 'initiated',
-      // Payments are recorded in the charged currency (what the provider moves).
-      amount_cents: order.charge_amount_cents ?? order.total_cents,
-      currency: order.charge_currency ?? order.currency,
-    }),
-    'payment:init',
-  );
-
-  unwrap(
-    await db().from('orders').update({ status: 'pending_payment' }).eq('id', order.id),
-    'checkout:pending',
-  );
-
-  return ok(res, {
+  const orderUrl = `${siteUrl()}/order.html?id=${order.id}&token=${order.access_token}`;
+  const summary = {
     orderId: order.id,
     orderNumber: order.order_number,
     accessToken: order.access_token,
     totalCents: order.total_cents,
+    giftCardCents: order.gift_card_cents,
     currency: order.currency,
     itemCount: items.length,
-    redirectUrl: init.redirectUrl,
-  });
+  };
+
+  if (!provider) {
+    try {
+      await rpc('confirm_order_payment', {
+        p_order_id: order.id,
+        p_provider: 'gift_card',
+        p_provider_reference: `gc_${order.id.replace(/-/g, '')}`,
+        p_amount_cents: 0,
+      });
+    } catch (error) {
+      // Nothing was charged, so the honest move is to undo the order and give
+      // the credit back, then tell them what happened.
+      await abandonOrder(order.id);
+
+      if (String(error.message).includes('INSUFFICIENT_STOCK')) {
+        throw conflict('A part in your cart sold out a moment ago. Nothing was taken from your gift card.');
+      }
+      throw error;
+    }
+
+    // The order is paid and committed. A failure from here on must not tell the
+    // customer their order failed, or they will try again and pay twice.
+    try {
+      await sendOrderPaidEmails(order.id);
+    } catch (error) {
+      console.error('[checkout] gift card order paid but receipt failed', { orderId: order.id, message: error.message });
+    }
+
+    return ok(res, { ...summary, paidWithGiftCard: true, redirectUrl: orderUrl });
+  }
+
+  const init = await startPayment(provider, order, { callbackUrl: orderUrl });
+
+  return ok(res, { ...summary, redirectUrl: init.redirectUrl });
 }
 
 export default handler({ POST: create });

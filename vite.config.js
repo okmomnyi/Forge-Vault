@@ -143,6 +143,7 @@ export default defineConfig({
         order: 'order.html',
         account: 'account.html',
         orders: 'orders.html',
+        giftCards: 'gift-cards.html',
 
         // Admin
         adminLogin: 'admin/login.html',

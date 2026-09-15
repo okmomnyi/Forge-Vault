@@ -79,7 +79,17 @@ async function main() {
   console.log(`\n✓ ${functions.length} functions:`);
   console.log('   ' + functions.map((f) => f.routine_name).join(', '));
 
-  const required = ['confirm_order_payment', 'record_refund_success', 'restock_order', 'hit_rate_limit'];
+  const required = [
+    'confirm_order_payment',
+    'record_refund_success',
+    'restock_order',
+    'hit_rate_limit',
+    'hold_gift_card',
+    'release_gift_card_hold',
+    'void_gift_card_for_refund',
+    'reverse_gift_card_void',
+    'reissue_gift_card',
+  ];
   const missing = required.filter((fn) => !functions.some((f) => f.routine_name === fn));
 
   if (missing.length) {

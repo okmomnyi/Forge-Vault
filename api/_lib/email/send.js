@@ -2,8 +2,9 @@ import { db, unwrap } from '../db.js';
 import { optionalEnv, requireEnv } from '../env.js';
 import * as coreTemplates from './templates.js';
 import * as extraTemplates from './templates-extra.js';
+import * as giftCardTemplates from './templates-gift-cards.js';
 
-const templates = { ...coreTemplates, ...extraTemplates };
+const templates = { ...coreTemplates, ...extraTemplates, ...giftCardTemplates };
 
 /**
  * Email delivery via Brevo (formerly Sendinblue).
