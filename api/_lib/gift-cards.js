@@ -26,7 +26,7 @@ import { badRequest, conflict } from './http.js';
 
 export const GIFT_CARD_MIN_CENTS = 500; // $5
 export const GIFT_CARD_MAX_CENTS = 50000; // $500
-export const GIFT_CARD_PRESETS_CENTS = [2500, 5000, 10000, 25000];
+export const GIFT_CARD_PRESETS_CENTS = [500, 2500, 5000, 10000, 25000];
 export const GIFT_CARD_MESSAGE_MAX = 300;
 
 // Crockford base32: no I, L, O or U, so a code read aloud or copied off a phone
