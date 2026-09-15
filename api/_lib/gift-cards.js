@@ -24,7 +24,7 @@ import { badRequest, conflict } from './http.js';
  *     is replaced with a reissue.
  */
 
-export const GIFT_CARD_MIN_CENTS = 1000; // $10
+export const GIFT_CARD_MIN_CENTS = 500; // $5
 export const GIFT_CARD_MAX_CENTS = 50000; // $500
 export const GIFT_CARD_PRESETS_CENTS = [2500, 5000, 10000, 25000];
 export const GIFT_CARD_MESSAGE_MAX = 300;

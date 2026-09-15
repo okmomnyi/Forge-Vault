@@ -109,7 +109,7 @@ what has to be decided.
 
 ## Gift cards
 
-Customers buy a card for $10 to $500 on `/gift-cards.html`. It is emailed to a recipient, and spent at checkout.
+Customers buy a card for $5 to $500 on `/gift-cards.html`. It is emailed to a recipient, and spent at checkout.
 
 ```
 buy     →  POST /api/gift-cards/purchase   REQUIRES a session. Creates an order (kind = 'gift_card')
